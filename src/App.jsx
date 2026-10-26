@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
   Bell, PawPrint, Pizza, Laptop, ShoppingBasket, Settings2, Search, Mic, ShoppingCart, Filter, Image as IconeImagem, Car, Utensils, Cross, Wifi, Flame, Gift, Smartphone, GraduationCap, Shirt, Dumbbell, HeartPulse, Clock, CalendarDays, Plus, Pencil, Trash2, Check, X, Wallet, CreditCard, ArrowRight, FileDown,
   CheckCircle2, Circle, Download, LogOut, Mail, Lock, Eye, EyeOff, UserPlus, ShieldCheck,
@@ -621,31 +621,54 @@ function MeuCaixaApp({ usuario }) {
   const [relatorio, setRelatorio] = useState(null);
   const [gerandoImagem, setGerandoImagem] = useState(false);
 
-  const gerarRelatorio = (dados) => {
-    setRelatorio(dados);
+  const [avisoDownload, setAvisoDownload] = useState(null);
+  const exportandoRef = useRef(false);
+  const gerarRelatorio = async (dados, formato = "imagem") => {
+    if (exportandoRef.current) return;
+    exportandoRef.current = true;
     setGerandoImagem(true);
-    setTimeout(async () => {
-      const elemento = document.getElementById("relatorio-para-captura");
-      if (!elemento) { setGerandoImagem(false); return; }
-      try {
-        await document.fonts?.ready;
+    setAvisoDownload({ tipo: "preparando", mensagem: formato === "planilha" ? "Preparando planilha…" : "Preparando imagem…" });
+    let canvas;
+    try {
+      if (!dados.linhas?.length) throw new Error("Não há compras para exportar neste mês e filtro.");
+      const nome = nomeArquivoRelatorio(dados);
+      let arquivo;
+      if (formato === "planilha") {
+        arquivo = new Blob([gerarCsvCartao(dados)], { type: "text/csv;charset=utf-8" });
+      } else {
+        flushSync(() => setRelatorio(dados));
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const elemento = document.getElementById("relatorio-para-captura");
+        if (!elemento) throw new Error("Não foi possível preparar o relatório. Tente novamente.");
+        await Promise.race([document.fonts?.ready || Promise.resolve(), new Promise((resolve) => setTimeout(resolve, 4000))]);
         await Promise.all(Array.from(elemento.querySelectorAll("img")).map((img) => img.complete ? Promise.resolve() : new Promise((resolve) => {
           const concluir = () => { img.removeEventListener("load", concluir); img.removeEventListener("error", concluir); clearTimeout(limite); resolve(); };
           const limite = setTimeout(concluir, 4000); img.addEventListener("load", concluir); img.addEventListener("error", concluir);
         })));
-        const canvas = await html2canvas(elemento, { backgroundColor: COR.papel, scale: 2, useCORS: true });
-        const url = canvas.toDataURL("image/jpeg", 0.92);
-        const slug = dados.nomeCartao.replace(/\s+/g, "-");
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `Relatorio-${slug}-${dados.pessoaFiltro === "todos" ? "todos" : dados.pessoaFiltro}-${dados.mesSelecionado}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      } finally {
-        setGerandoImagem(false);
+        const largura = elemento.scrollWidth, altura = elemento.scrollHeight;
+        const escala = Math.min(2, 16000 / Math.max(largura, altura), Math.sqrt(16000000 / (largura * altura)));
+        canvas = await html2canvas(elemento, {
+          backgroundColor: "#FFFFFF", scale: escala, useCORS: true, allowTaint: false,
+          width: largura, height: altura, windowWidth: Math.max(800, largura), scrollX: 0, scrollY: 0,
+          imageTimeout: 4000, logging: false,
+          onclone: (doc) => {
+            const copia = doc.getElementById("relatorio-para-captura");
+            if (copia) Object.assign(copia.style, { position: "absolute", top: "0", left: "0", transform: "none", margin: "0" });
+          },
+        });
+        arquivo = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Não foi possível criar a imagem. Tente exportar a planilha.")), "image/jpeg", 0.92));
       }
-    }, 80);
+      baixarArquivo(arquivo, `${nome}.${formato === "planilha" ? "csv" : "jpg"}`);
+      setAvisoDownload({ tipo: "baixando", mensagem: "Baixando…", id: Date.now() });
+    } catch (erro) {
+      console.error("Falha ao exportar cartão", erro);
+      setAvisoDownload({ tipo: "erro", mensagem: erro.message || "Não foi possível gerar o arquivo. Tente novamente." });
+    } finally {
+      if (canvas) { canvas.width = 0; canvas.height = 0; }
+      setRelatorio(null);
+      setGerandoImagem(false);
+      exportandoRef.current = false;
+    }
   };
 
   const cartaoAtivo = cartoes.find((c) => `cartao-${c.id}` === aba);
@@ -890,6 +913,7 @@ function MeuCaixaApp({ usuario }) {
 
       {/* área exclusiva de impressão / PDF — única para qualquer cartão, evita duplicar relatórios */}
       {relatorio && <RelatorioImagem dados={relatorio} />}
+      {avisoDownload && <AvisoDownload aviso={avisoDownload} onFechar={() => setAvisoDownload(null)} />}
 
     </div>
   );
@@ -1978,8 +2002,8 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
     catch (erro) { setErroExclusao(erro.message); }
   };
 
-  const gerarRelatorioPdf = () => {
-    onGerarPdf({ nomeCartao, pessoaFiltro, mostrarPessoa: todasPessoas || selecaoValida.length !== 1, mesSelecionado, linhas: linhasMes, total: totalMes, cartao: { nome: nomeCartao, cor: corPrincipal, diaVencimento: diaVencimentoCartao(cartao) } });
+  const gerarRelatorioPdf = (formato = "imagem") => {
+    onGerarPdf({ nomeCartao, pessoaFiltro, mostrarPessoa: todasPessoas || selecaoValida.length !== 1, mesSelecionado, linhas: linhasMes, total: totalMes, cartao: { nome: nomeCartao, cor: corPrincipal, diaVencimento: diaVencimentoCartao(cartao) } }, formato);
   };
 
   return (
@@ -2002,6 +2026,7 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
           { nome: "Adicionar por voz", Icon: Mic, acao: () => { setFerramenta(null); setMostrarVoz(true); } },
           { nome: "Filtrar por pessoa", Icon: Filter, detalhe: resumoFiltro, acao: () => setFerramenta("filtrar") },
           { nome: gerandoImagem ? "Gerando imagem..." : "Gerar imagem", Icon: IconeImagem, desabilitado: gerandoImagem || !linhasMes.length, acao: () => { setFerramenta(null); gerarRelatorioPdf(); } },
+          { nome: "Gerar planilha (CSV)", Icon: FileDown, desabilitado: gerandoImagem || !linhasMes.length, acao: () => { setFerramenta(null); gerarRelatorioPdf("planilha"); } },
           { nome: "Resumo por pessoa", Icon: User, acao: () => { setFerramenta(null); setMostrarResumoPessoas(true); } },
           { nome: "Buscar compra ou pessoa", Icon: Search, detalhe: buscaCompra, acao: () => setFerramenta("buscar") },
           { nome: "Calculadora", Icon: IconeCalculadora, acao: () => { setFerramenta(null); onAbrirCalculadora(); } },
@@ -2660,6 +2685,50 @@ function IlustracaoRelatorio({ nubank }) {
     <g transform="rotate(-17 79 132)"><rect x="14" y="92" width="125" height="79" rx="10" fill="#7312AC" /><rect x="104" y="107" width="20" height="16" rx="3" fill="#D2D3DF" /><path d="M111 107 V123 M118 107 V123 M104 115 H124" stroke="#9B9EAF" strokeWidth="1" />{nubank ? <text x="30" y="153" fill="white" fontSize="26" fontWeight="700" fontFamily="Arial, sans-serif">nu</text> : <path d="M31 144 H61 M31 151 H50" stroke="white" strokeWidth="4" strokeLinecap="round" />}</g>
     <path d="M174 42 L180 27 M187 51 L199 44" stroke="#7B18A8" strokeWidth="4" strokeLinecap="round" />
   </svg>;
+}
+
+function nomeArquivoRelatorio(dados) {
+  const limpar = (texto) => String(texto || "todos").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9_-]+/g, "-").slice(0, 70);
+  return `Relatorio-${limpar(dados.nomeCartao)}-${limpar(dados.pessoaFiltro)}-${limpar(dados.mesSelecionado)}`;
+}
+
+function gerarCsvCartao(dados) {
+  const textoSeguro = (valor) => {
+    const texto = String(valor ?? "");
+    return /^[\s\u0000-\u0020]*[=+@-]/.test(texto) ? `'${texto}` : texto;
+  };
+  const celula = (valor) => `"${String(valor).replace(/"/g, '""')}"`;
+  const valor = (v) => Number(v || 0).toFixed(2).replace(".", ",");
+  const linhas = [["Cartão", "Mês", "Data", "Compra", "Pessoa", "Parcela", "Valor (R$)"]];
+  for (const c of dados.linhas) {
+    const parcela = dadosParcelamento(c);
+    linhas.push([textoSeguro(dados.nomeCartao), dados.mesSelecionado, String(c.data || "").split("-").reverse().join("/"), textoSeguro(c.compra), textoSeguro(c.nome), parcela.parcelada ? `${parcela.numero}/${parcela.total}` : "", valor(c.valor)]);
+  }
+  linhas.push(["", "", "", "TOTAL", "", "", valor(dados.total)]);
+  return "\uFEFF" + linhas.map((linha) => linha.map(celula).join(";")).join("\r\n") + "\r\n";
+}
+
+function baixarArquivo(blob, nome) {
+  if (!blob?.size) throw new Error("O arquivo gerado está vazio. Tente novamente.");
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = nome;
+  document.body.appendChild(link);
+  try { link.click(); }
+  finally { link.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000); }
+}
+
+function AvisoDownload({ aviso, onFechar }) {
+  useEffect(() => {
+    if (aviso.tipo !== "baixando") return;
+    const timer = setTimeout(onFechar, 4500);
+    return () => clearTimeout(timer);
+  }, [aviso, onFechar]);
+  return createPortal(<div className="fixed inset-x-4 z-[100] mx-auto max-w-sm rounded-2xl overflow-hidden border shadow-lg" role={aviso.tipo === "erro" ? "alert" : "status"} aria-live="polite" style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))", background: COR.cartao, borderColor: COR.linha }}>
+    <div className="flex gap-3 items-center p-4"><Download size={22} className={aviso.tipo === "preparando" ? "animate-pulse shrink-0" : "shrink-0"} style={{ color: aviso.tipo === "erro" ? COR.vermelho : COR.ouro }} /><div className="flex-1 min-w-0"><p className="text-sm font-semibold">{aviso.mensagem}</p>{aviso.tipo === "baixando" && <p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>Confira o arquivo nos downloads do navegador.</p>}</div><button type="button" aria-label="Fechar aviso de download" onClick={onFechar} className="p-1"><X size={18} /></button></div>
+    <style>{`@keyframes meuCaixaBarraDownload { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
+    {aviso.tipo !== "erro" && <div style={{ height: 4, background: "#DBEAFE" }}><div key={aviso.id || aviso.tipo} style={{ height: "100%", background: "#2563EB", transformOrigin: "left", animation: aviso.tipo === "baixando" ? "meuCaixaBarraDownload 4.5s linear forwards" : "none" }} /></div>}
+  </div>, document.body);
 }
 
 function RelatorioImagem({ dados }) {
