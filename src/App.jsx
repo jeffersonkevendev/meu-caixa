@@ -2043,7 +2043,7 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
         <p className="text-xs mt-3" style={{ color: COR.tintaSuave }}>{linhasMes.length} {linhasMes.length === 1 ? "compra encontrada" : "compras encontradas"} no mês selecionado.</p>
         <button onClick={() => setFerramenta(null)} className="w-full rounded-xl py-3 text-sm font-semibold text-white mt-4" style={{ background: COR.ouro }}>Ver resultados</button>
       </JanelaFerramentaCartao>}
-      {mostrarVoz && <CompraPorVoz nomeUsuario={primeiroNomeUsuario} cartao={cartao} onFechar={() => setMostrarVoz(false)} onAdicionar={(registros, mes) => { onAtualizarCompras((atuais) => [...atuais, ...registros]); setPessoasSelecionadas(null); setBuscaCompra(""); setMesSelecionado(mes); }} onDesfazer={(ids) => onAtualizarCompras((atuais) => atuais.filter((c) => !ids.includes(c.id)))} />}
+      {mostrarVoz && <CompraPorVoz nomeUsuario={primeiroNomeUsuario} mesInicial={mesSelecionado} cartao={cartao} onFechar={() => setMostrarVoz(false)} onAdicionar={(registros, mes) => { onAtualizarCompras((atuais) => [...atuais, ...registros]); setPessoasSelecionadas(null); setBuscaCompra(""); setMesSelecionado(mes); }} onDesfazer={(ids) => onAtualizarCompras((atuais) => atuais.filter((c) => !ids.includes(c.id)))} />}
       {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setPessoasSelecionadas([nome]); setBuscaCompra(""); setMostrarResumoPessoas(false); }} />}
       {ferramenta === "adicionar" && (
         <JanelaFerramentaCartao titulo="Adicionar compra" onFechar={() => { setMostrarForm(false); setFerramenta(null); }}><div className="rounded-2xl p-4 flex flex-col gap-3 oculta-impressao" style={{ background: COR.cartao, border: `1px solid ${COR.linha}` }}>
@@ -2366,18 +2366,18 @@ function valorDaFala(texto) {
   return dinheiro ? numeroFaladoPt(dinheiro) : NaN;
 }
 
-function montarCompraPorVoz({ compra, valor, mes, dividirCom = "", transcricao = "" }, nomeUsuario) {
-  const nome = (nomeUsuario || "").trim();
+function montarCompraPorVoz({ compra, valor, mes, nome: comprador, dividirCom = "", transcricao = "" }, nomeUsuario) {
+  const nome = (comprador || nomeUsuario || "").trim();
   if (!nome) throw new Error("Não foi possível identificar seu nome. Use Adicionar compra.");
   if (!compra.trim()) throw new Error("Preencha a descrição da compra.");
   if (!Number.isFinite(valor) || valor <= 0 || valor > 999999) throw new Error("Confira o valor da compra.");
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw new Error("Escolha um mês válido.");
   const registro = { id: uid(), nome, compra: compra.trim(), valor: Math.round(valor * 100) / 100, data: `${mes}-01`, tipoLancamento: "compra", origem: "voz", transcricaoVoz: transcricao };
   const registros = dividirCom.trim() ? dividirRegistrosCompras([registro], nome, dividirCom.trim()) : [registro];
-  return { compra: registro.compra, valor: registro.valor, mes, dividirCom: dividirCom.trim(), registros };
+  return { nome, compra: registro.compra, valor: registro.valor, mes, dividirCom: dividirCom.trim(), registros };
 }
 
-function interpretarCompraPorVoz(texto, nomeUsuario, mes = mesResumoInicial()) {
+function interpretarCompraPorVoz(texto, nomeUsuario, mes = mesResumoInicial(), nomesConhecidos = []) {
   const original = texto.trim();
   if (/parcelad|parcelas|estorno|pagamento antecipado/i.test(normalizarBusca(original))) throw new Error("Use Adicionar compra para parcelas, estornos ou pagamentos antecipados.");
   let fala = original.replace(/[.!?;]+\s*$/g, "").trim();
@@ -2399,6 +2399,17 @@ function interpretarCompraPorVoz(texto, nomeUsuario, mes = mesResumoInicial()) {
   if (mesAntesDivisao) {
     mes = `${mesAntesDivisao[2] || mes.slice(0, 4)}-${String(meses.indexOf(mesAntesDivisao[1]) + 1).padStart(2, "0")}`;
     fala = fala.slice(0, mesAntesDivisao.index).trim().replace(/[.!?,;]+$/, "");
+  }
+  let comprador = nomeUsuario;
+  const candidatos = [...new Set([nomeUsuario, primeiroNomeDe(nomeUsuario), "Jefferson", "Filipe", ...nomesConhecidos, ...nomesConhecidos.map(primeiroNomeDe)].filter(Boolean))].sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length);
+  const tokensPessoa = fala.replace(/[.!?,;]+$/, "").trim().split(/\s+/);
+  for (const nome of candidatos) {
+    const partesNome = nome.trim().split(/\s+/);
+    if (tokensPessoa.length > partesNome.length && normalizarBusca(tokensPessoa.slice(-partesNome.length).join(" ")) === normalizarBusca(nome)) {
+      comprador = nome;
+      fala = tokensPessoa.slice(0, -partesNome.length).join(" ").replace(/(?:[,;.]|\s+(?:para|por|do|da))\s*$/i, "").trim();
+      break;
+    }
   }
   const partes = fala.match(/^(?:comprei|gastei|paguei|compra de)\s+(.*?)\s+(?:no|na|em|para|de)\s+(.+)$/i);
   let compra, dinheiro;
@@ -2428,11 +2439,11 @@ function interpretarCompraPorVoz(texto, nomeUsuario, mes = mesResumoInicial()) {
     valor /= 100;
     aviso = `A fala trouxe “${dinheiro.trim()}” sem separador. Sugeri ${fmt(valor)}; confira e corrija o valor antes de confirmar.`;
   }
-  const resultado = montarCompraPorVoz({ compra, valor, mes, dividirCom, transcricao: original }, nomeUsuario);
+  const resultado = montarCompraPorVoz({ nome: comprador, compra, valor, mes, dividirCom, transcricao: original }, nomeUsuario);
   return { ...resultado, aviso };
 }
 
-function CompraPorVoz({ nomeUsuario, cartao, onFechar, onAdicionar, onDesfazer }) {
+function CompraPorVoz({ nomeUsuario, cartao, mesInicial, onFechar, onAdicionar, onDesfazer }) {
   const [ouvindo, setOuvindo] = useState(false), [erro, setErro] = useState(""), [transcricao, setTranscricao] = useState(""), [resultado, setResultado] = useState(null), [desfeita, setDesfeita] = useState(false);
   const [previa, setPrevia] = useState(null), [confirmando, setConfirmando] = useState(false);
   const adicionadaRef = useRef(false);
@@ -2460,8 +2471,8 @@ function CompraPorVoz({ nomeUsuario, cartao, onFechar, onAdicionar, onDesfazer }
       const texto = Array.from(evento.results).filter((r) => r.isFinal).map((r) => r[0].transcript).join(" ").trim();
       setTranscricao(texto);
       try {
-        const interpretado = interpretarCompraPorVoz(texto, nomeUsuario);
-        setPrevia({ compra: interpretado.compra, valor: interpretado.valor.toFixed(2).replace(".", ","), mes: interpretado.mes, dividirCom: interpretado.dividirCom, aviso: interpretado.aviso });
+        const interpretado = interpretarCompraPorVoz(texto, nomeUsuario, mesInicial || mesResumoInicial(), (cartao.compras || []).map((c) => c.nome).filter(Boolean));
+        setPrevia({ nome: interpretado.nome, compra: interpretado.compra, valor: interpretado.valor.toFixed(2).replace(".", ","), mes: interpretado.mes, dividirCom: interpretado.dividirCom, aviso: interpretado.aviso });
       } catch (e) { setErro(e.message); }
       setOuvindo(false);
     };
@@ -2490,13 +2501,26 @@ function CompraPorVoz({ nomeUsuario, cartao, onFechar, onAdicionar, onDesfazer }
   return createPortal(<div role="dialog" aria-modal="true" aria-label="Compra por voz" className="fixed inset-0 z-[70] flex items-center justify-center p-4 oculta-impressao" style={{ background: "rgba(15,23,42,0.4)" }} onClick={fechar}>
     <div className="w-full max-w-md rounded-3xl p-5 overflow-y-auto" style={{ background: COR.cartao, maxHeight: "85dvh" }} onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Compra por voz</h2><button type="button" aria-label="Fechar compra por voz" onClick={fechar} className="p-2"><X size={22} /></button></div>
-      <div className="flex justify-center my-5"><button type="button" aria-label={ouvindo ? "Cancelar gravação" : "Iniciar gravação"} disabled={!suportado || !!resultado} onClick={ouvindo ? cancelarAudio : iniciar} className="rounded-full flex items-center justify-center disabled:opacity-50" style={{ width: 76, height: 76, background: COR.ouro, color: "white", boxShadow: "0 0 0 10px #DBEAFE" }}><Mic size={32} /></button></div>
-      <p role="status" aria-live="polite" className="text-sm text-center mb-3" style={{ color: resultado && !desfeita ? COR.verde : COR.tintaSuave }}>{desfeita ? "Compra desfeita." : resultado ? "Compra adicionada ao mês escolhido." : previa ? "Confira os dados antes de adicionar." : ouvindo ? "Ouvindo... fale a compra e aguarde." : "Toque no microfone para falar."}</p>
+      <style>{`
+        @keyframes meuCaixaOndaMicrofone { 0% { transform: scale(1); opacity: .48; } 100% { transform: scale(1.65); opacity: 0; } }
+        @keyframes meuCaixaPulsoMicrofone { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+        .microfone-voz-onda { animation: meuCaixaOndaMicrofone 1.8s ease-out infinite; }
+        .microfone-voz-ativo { animation: meuCaixaPulsoMicrofone 1.2s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .microfone-voz-onda, .microfone-voz-ativo { animation: none; } .microfone-voz-onda { opacity: .2; } }
+      `}</style>
+      <div className="flex justify-center my-5" style={{ padding: "16px 0" }}>
+        <div className="relative" style={{ width: 76, height: 76 }}>
+          {ouvindo && [0, .6, 1.2].map((atraso) => <span key={atraso} aria-hidden="true" className="absolute inset-0 rounded-full pointer-events-none microfone-voz-onda" style={{ background: "#2563EB", animationDelay: `${atraso}s` }} />)}
+          <button type="button" aria-pressed={ouvindo} aria-label={ouvindo ? "Cancelar gravação" : "Iniciar gravação"} disabled={!suportado || !!resultado} onClick={ouvindo ? cancelarAudio : iniciar} className={`relative rounded-full flex items-center justify-center disabled:opacity-50 ${ouvindo ? "microfone-voz-ativo" : ""}`} style={{ width: 76, height: 76, background: COR.ouro, color: "white", boxShadow: "0 0 0 10px #DBEAFE" }}><Mic size={32} /></button>
+        </div>
+      </div>
+      <p role="status" aria-live="polite" className="text-sm text-center mb-3" style={{ color: resultado && !desfeita ? COR.verde : COR.tintaSuave }}>{desfeita ? "Compra desfeita." : resultado ? "Compra adicionada ao mês escolhido." : previa ? "Confira os dados antes de adicionar." : ouvindo ? "Ouvindo... fale a compra e aguarde." : "Toque no microfone e diga: 30 reais Americanas Jefferson."}</p>
       {!suportado && <p className="text-sm mb-3" style={{ color: COR.vermelho }}>Seu navegador não oferece reconhecimento de voz. Tente abrir o app no Chrome ou use Adicionar compra.</p>}
       {transcricao && <p className="text-sm rounded-xl p-3 mt-3" style={{ background: COR.papel }}>“{transcricao}”</p>}
       {erro && <p role="alert" className="text-sm mt-3" style={{ color: COR.vermelho }}>{erro} Nenhuma compra foi adicionada.</p>}
       {previa && !resultado && <div className="mt-4 flex flex-col gap-3">
         {previa.aviso && <p role="status" className="text-sm rounded-xl p-3" style={{ background: COR.ouroClaro, color: COR.tinta }}>{previa.aviso}</p>}
+        <label className="text-sm">Quem comprou<input value={previa.nome} onChange={(e) => setPrevia((p) => ({ ...p, nome: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
         <label className="text-sm">Descrição<input value={previa.compra} onChange={(e) => setPrevia((p) => ({ ...p, compra: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
         <label className="text-sm">Valor (R$)<input inputMode="decimal" value={previa.valor} onChange={(e) => setPrevia((p) => ({ ...p, valor: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
         <label className="text-sm">Mês<input type="month" value={previa.mes} onChange={(e) => setPrevia((p) => ({ ...p, mes: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
