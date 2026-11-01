@@ -740,7 +740,7 @@ function MeuCaixaApp({ usuario }) {
                     if (aba.startsWith("cartao-")) ferramentasCartoesRef.current[aba]?.exportar("planilha");
                     else { setAba("despesas"); ferramentasDespesasRef.current?.exportar("planilha"); }
                   } },
-                  ...(aba.startsWith("cartao-") ? [{ nome: "Conferir fatura (CSV)", Icon: FileDown, acao: () => ferramentasCartoesRef.current[aba]?.conferir() }, { nome: "Resumo por pessoa", Icon: User, acao: () => ferramentasCartoesRef.current[aba]?.resumo() }] : []),
+                  ...(aba.startsWith("cartao-") ? [{ nome: "Resumo por pessoa", Icon: User, acao: () => ferramentasCartoesRef.current[aba]?.resumo() }] : []),
                   { nome: "Calculadora", Icon: IconeCalculadora, acao: () => setMostrarCalculadora(true) },
                 ].map(({ nome, Icon, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={() => { setPainelCabecalho(null); acao(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-bold disabled:opacity-40" style={{ color: COR.tinta, fontWeight: 700, fontSize: 14, lineHeight: "20px", padding: "12px 16px", borderBottom: `1px solid ${COR.linha}` }}><Icon size={20} className="shrink-0" color={COR.tintaSuave} /><span>{nome}</span></button>)}
               </CortinaCabecalho>
@@ -1891,7 +1891,6 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
   const [buscaCompra, setBuscaCompra] = useState("");
   const [mostrarResumoPessoas, setMostrarResumoPessoas] = useState(false);
   const [ferramenta, setFerramenta] = useState(null);
-  const [mostrarConferencia, setMostrarConferencia] = useState(false);
 
   const pessoaFiltro = "todos";
   const comprasFiltradas = useMemo(() => {
@@ -2005,7 +2004,6 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
       adicionar: () => { setMesCompra(mesSelecionado); setMostrarForm(true); setFerramenta("adicionar"); },
       exportar: (formato) => gerarRelatorioPdf(formato),
       resumo: () => setMostrarResumoPessoas(true),
-      conferir: () => setMostrarConferencia(true),
     };
     ferramentasRef.current[chave] = acoes;
     return () => { if (ferramentasRef.current[chave] === acoes) delete ferramentasRef.current[chave]; };
@@ -2038,7 +2036,6 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
         {buscaCompra && <button type="button" aria-label="Limpar busca" title="Limpar busca" onClick={() => setBuscaCompra("")} className="p-2 rounded-full shrink-0" style={{ color: COR.tintaSuave }}><X size={18} /></button>}
       </div>
 
-      {mostrarConferencia && <ConferenciaFatura compras={compras} mes={mesSelecionado} onFechar={() => setMostrarConferencia(false)} />}
       {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setBuscaCompra(nome); setMostrarResumoPessoas(false); }} />}
       {ferramenta === "adicionar" && (
         <JanelaFerramentaCartao titulo="Adicionar compra" onFechar={() => { setMostrarForm(false); setFerramenta(null); }}><div className="rounded-2xl p-4 flex flex-col gap-3 oculta-impressao" style={{ background: COR.cartao, border: `1px solid ${COR.linha}` }}>
@@ -2330,78 +2327,6 @@ function MarcaNubankFatura() { return <div className="text-white mb-3" aria-labe
           <path d="M30.6536 24.0007C32.8265 24.0007 34.6805 23.1556 36.066 21.7055C31.74 21.7055 28.9291 18.7652 28.7796 14.0898C28.7497 13.0197 28.7248 10.3595 28.7248 7.2692V0.558594L22.9137 0.568595V9.63942C22.9137 12.3847 22.8937 14.7549 23.0881 16.395C23.6264 20.9554 26.4372 24.0007 30.6536 24.0007Z" fill="currentColor" />
         </svg><span className="block text-xs mt-1">Nubank</span></div>; }
 
-// Conferência local: valores sempre comparados em centavos, sem modificar registros.
-function lerCsvFatura(texto) {
-  const fonte = texto.replace(/^\uFEFF/, "");
-  const primeira = fonte.split(/\r?\n/)[0];
-  const contar = (sep) => { let n = 0, aspas = false; for (const c of primeira) { if (c === '"') aspas = !aspas; if (c === sep && !aspas) n++; } return n; };
-  const sep = contar(";") > contar(",") ? ";" : ",";
-  const tabela = []; let linha = [], campo = "", aspas = false;
-  for (let i = 0; i < fonte.length; i++) {
-    const c = fonte[i];
-    if (c === '"') { if (aspas && fonte[i + 1] === '"') { campo += '"'; i++; } else aspas = !aspas; }
-    else if (!aspas && (c === sep || c === '\n' || c === '\r')) {
-      linha.push(campo); campo = "";
-      if (c !== sep) { if (linha.some((v) => v.trim())) tabela.push(linha); linha = []; if (c === '\r' && fonte[i + 1] === '\n') i++; }
-    } else campo += c;
-  }
-  if (aspas) throw new Error("CSV inválido: aspas não fechadas.");
-  linha.push(campo); if (linha.some((v) => v.trim())) tabela.push(linha);
-  const cab = (tabela.shift() || []).map(normalizarBusca);
-  const indice = (nomes) => cab.findIndex((v) => nomes.includes(v));
-  const desc = indice(["title", "descricao", "descrição", "compra", "estabelecimento"]), valor = indice(["amount", "valor"]);
-  if (desc < 0 || valor < 0) throw new Error("Use um CSV com colunas title e amount (Nubank), ou descrição e valor.");
-  if (!tabela.length) throw new Error("O arquivo não contém lançamentos.");
-  return tabela.map((r, i) => {
-    let numero = (r[valor] || "").replace(/R\$|\s/g, "");
-    if (numero.includes(",")) numero = numero.replace(/\./g, "").replace(",", ".");
-    if (!/^-?\d+(\.\d{1,2})?$/.test(numero) || !r[desc]?.trim()) throw new Error(`Confira o valor e a descrição na linha ${i + 2}.`);
-    return { compra: r[desc].trim(), valor: Number(numero) };
-  });
-}
-function compararFatura(banco, app) {
-  const cent = (v) => Math.round(Number(v) * 100);
-  const pendentes = app.map((c) => ({ ...c }));
-  const faltantes = [], divergentes = [], conferir = []; let iguais = 0;
-  const chave = (c) => normalizarBusca(c.compra).replace(/[^a-z0-9]/g, "");
-  const restantes = [];
-  for (const b of banco) {
-    const i = pendentes.findIndex((a) => chave(a) === chave(b) && cent(a.valor) === cent(b.valor));
-    if (i >= 0) { pendentes.splice(i, 1); iguais++; } else restantes.push(b);
-  }
-  for (const b of restantes) {
-    const candidatos = pendentes.map((a, i) => ({ a, i })).filter(({ a }) => chave(a) === chave(b));
-    if (candidatos.length === 1) { const { a, i } = candidatos[0]; divergentes.push({ banco: b, app: a }); pendentes.splice(i, 1); }
-    else if (pendentes.some((a) => cent(a.valor) === cent(b.valor))) conferir.push(b);
-    else faltantes.push(b);
-  }
-  return { iguais, faltantes, divergentes, conferir, extras: pendentes, totalBanco: banco.reduce((s, c) => s + cent(c.valor), 0) / 100, totalApp: app.reduce((s, c) => s + cent(c.valor), 0) / 100 };
-}
-function ConferenciaFatura({ compras, mes, onFechar }) {
-  const [dados, setDados] = useState(null), [erro, setErro] = useState(""), [lendo, setLendo] = useState(false);
-  const linhas = agruparComprasParaExibicao(compras.filter((c) => chaveDoMes(c.data) === mes));
-  const resultado = dados ? compararFatura(dados, linhas) : null;
-  const importar = async (e) => {
-    const arquivo = e.target.files?.[0]; if (!arquivo) return;
-    setDados(null); setErro(""); setLendo(true);
-    try { if (arquivo.size > 5 * 1024 * 1024) throw new Error("Escolha um CSV de até 5 MB."); setDados(lerCsvFatura(await arquivo.text())); }
-    catch (e) { setErro(e.message); } finally { setLendo(false); }
-  };
-  const lista = (titulo, itens) => itens.length > 0 && <div className="mt-4"><h3 className="font-semibold text-sm">{titulo} ({itens.length})</h3>{itens.map((c, i) => <div key={i} className="border-b py-2 text-sm" style={{ borderColor: COR.linha }}><p>{c.compra}</p><p>{fmt(c.valor)}</p></div>)}</div>;
-  return <JanelaFerramentaCartao titulo="Conferir fatura" onFechar={onFechar}>
-    <p className="text-sm mb-3">{rotuloDoMes(mes)} · Selecione o CSV completo desta fatura, exportado pelo banco. A comparação usa todas as pessoas, sem o filtro da busca.</p>
-    <input type="file" accept=".csv,text/csv" aria-label="Importar CSV da fatura" onChange={importar} className="block w-full text-sm" />
-    <p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>O arquivo é lido neste aparelho. Nenhuma compra é alterada. Pagamentos, créditos e nomes diferentes precisam ser conferidos por você.</p>
-    {lendo && <p role="status">Lendo arquivo…</p>}{erro && <p role="alert" className="text-sm mt-3" style={{ color: COR.vermelho }}>{erro}</p>}
-    {resultado && <div className="mt-4"><div className="rounded-xl p-3 text-sm" style={{ background: COR.ouroClaro }}><p>Total do CSV: {fmt(resultado.totalBanco)}</p><p>Total no app: {fmt(resultado.totalApp)}</p><p className="font-semibold">Diferença (CSV − app): {fmt((Math.round(resultado.totalBanco * 100) - Math.round(resultado.totalApp * 100)) / 100)}</p><p>{resultado.iguais} lançamentos correspondentes</p></div>
-      {lista("Sem correspondência no app", resultado.faltantes)}
-      {resultado.divergentes.length > 0 && <div className="mt-4"><h3 className="font-semibold text-sm">Valores diferentes</h3>{resultado.divergentes.map((c, i) => <div key={i} className="text-sm py-2"><p>{c.banco.compra}</p><p>CSV: {fmt(c.banco.valor)} · App: {fmt(c.app.valor)}</p></div>)}</div>}
-      {lista("Mesmo valor, descrição diferente: revisar", resultado.conferir)}{lista("Sem correspondência no CSV: revisar possíveis duplicidades", resultado.extras)}
-      <p className="text-xs mt-4" style={{ color: COR.tintaSuave }}>Correspondências usam descrição e valor, uma a uma. A data da compra não define o mês da fatura; confirme que escolheu o arquivo e o mês corretos. Totais iguais não garantem que todos os lançamentos estejam corretos.</p>
-    </div>}
-  </JanelaFerramentaCartao>;
-}
-
 function JanelaFerramentaCartao({ titulo, onFechar, flutuante = false, children }) {
   useEffect(() => {
     const teclado = (e) => { if (e.key === "Escape") onFechar(); };
@@ -2563,7 +2488,7 @@ function IconeCompraRelatorio({ texto }) {
   else if (/presente/.test(nome)) Icon = Gift;
   else if (/jim[.]?com|notebook|computador/.test(nome)) Icon = Laptop;
   else if (/homemarket|supermercado/.test(nome)) Icon = ShoppingBasket;
-  return <span style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 46, height: 46, borderRadius: 13, background: "#EFE7FB", color: "#631299" }}><Icon size={29} strokeWidth={1.8} /></span>;
+  return <span style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, width: 27, height: 27, borderRadius: 8, background: "#EFE7FB", color: "#631299" }}><Icon size={19} strokeWidth={1.8} /></span>;
 }
 
 function IlustracaoRelatorio({ nubank }) {
@@ -2628,35 +2553,31 @@ function AvisoDownload({ aviso, onFechar }) {
 
 function RelatorioImagem({ dados }) {
   const roxo = "#631299", tinta = "#100C29";
-  const mostrarPessoa = dados.mostrarPessoa ?? dados.pessoaFiltro === "todos";
-  const cartao = dados.cartao || { nome: dados.nomeCartao };
-  const nomeBanco = dados.nomeCartao.replace(/^cart[aã]o\s+/i, "");
-  return <div id="relatorio-para-captura" className="relatorio-impressao" style={{ boxSizing: "border-box", width: 640, padding: "28px 22px 24px", background: "#FFFFFF", color: tinta, fontFamily: "'Inter', ui-sans-serif, system-ui" }}>
-    <div style={{ position: "relative", padding: "0 8px 22px", minHeight: 190 }}>
-      <div style={{ position: "absolute", right: -8, top: 10 }}><IlustracaoRelatorio nubank={identificarBancoCartao(cartao) === "nubank"} /></div>
-      <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: 3, color: roxo, margin: "0 0 22px", textTransform: "uppercase" }}>{nomeBanco}</p>
-      <h1 style={{ position: "relative", fontSize: 34, fontWeight: 700, lineHeight: 1.15, margin: "0 0 6px", color: roxo }}>{dados.tipo === "despesas" ? "Relatório de despesas" : "Relatório de compras"}</h1>
-      <h2 style={{ position: "relative", fontSize: 27, fontWeight: 700, margin: "0 0 12px", maxWidth: 430 }}>{dados.nomeCartao}</h2>
-      <p style={{ position: "relative", fontSize: 18, color: "#5D5871", lineHeight: 1.4, margin: "0 0 6px", maxWidth: 455 }}>{dados.tipo === "despesas" ? dados.pessoaFiltro : dados.pessoaFiltro === "todos" ? "Todas as pessoas" : dados.pessoaFiltro} • {rotuloDoMes(dados.mesSelecionado)}</p>
-      <p style={{ fontSize: 13, color: "#706A80", margin: 0 }}>Gerado em {new Date().toLocaleDateString("pt-BR")}</p>
+  const nomes = [...new Set(dados.linhas.map((c) => String(c.nome || "").trim()).filter(Boolean))];
+  const pessoa = dados.tipo === "despesas" ? dados.pessoaFiltro : dados.pessoaFiltro && dados.pessoaFiltro !== "todos" ? dados.pessoaFiltro : nomes.length === 1 ? nomes[0] : "Todas as pessoas";
+  return <div id="relatorio-para-captura" className="relatorio-impressao" style={{ boxSizing: "border-box", width: 560, padding: "18px 14px", background: "#FFFFFF", color: tinta, fontFamily: "'Inter', ui-sans-serif, system-ui" }}>
+    <div style={{ padding: "0 8px 14px" }}>
+      <h1 style={{ fontSize: 27, fontWeight: 700, lineHeight: 1.2, margin: "0 0 6px", color: roxo }}>{dados.tipo === "despesas" ? "Relatório de despesas" : "Relatório de compras"}</h1>
+      <p style={{ fontSize: 16, color: "#5D5871", lineHeight: 1.4, margin: 0 }}>{pessoa} · {rotuloDoMes(dados.mesSelecionado)}</p>
     </div>
-    <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid #F0EAF7" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 20px", background: "#EFE7FA", color: roxo, fontSize: 20, fontWeight: 700 }}><span>{dados.tipo === "despesas" ? "Despesa" : "Compra"}</span><span>Valor</span></div>
+    <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #F0EAF7" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 14px", background: "#EFE7FA", color: roxo, fontSize: 16, fontWeight: 700 }}><span>{dados.tipo === "despesas" ? "Despesa" : "Compra"}</span><span>Valor</span></div>
       {dados.linhas.map((c, i) => {
         const info = dadosParcelamento(c);
         const parenteses = (info.descricao || "").match(/^(.*?)\s*\(([^)]+)\)\s*$/);
         const descricao = parenteses ? parenteses[1].trim() : info.descricao;
         const detalhe = parenteses ? parenteses[2] : "";
-        return <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 18, padding: "15px 20px", minHeight: 74, boxSizing: "border-box", background: i % 2 ? "#F7F3FC" : "#FFFFFF" }}>
+        return <div key={c.id || i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 14px", minHeight: 39, boxSizing: "border-box", background: i % 2 ? "#F7F3FC" : "#FFFFFF" }}>
           <IconeCompraRelatorio texto={c.compra} />
-          <div style={{ flex: 1, minWidth: 0 }}><p style={{ margin: 0, fontSize: 18, fontWeight: 600, lineHeight: 1.35, overflowWrap: "anywhere" }}>{descricao}{mostrarPessoa && <span> • {c.nome}</span>}</p>
-            {info.parcelada && <span style={{ display: "inline-block", marginTop: 5, padding: "3px 9px", borderRadius: 8, background: "#ECE1F8", color: "#49335D", fontSize: 13 }}>Parcela {info.numero}/{info.total}</span>}
-            {detalhe && <p style={{ margin: "4px 0 0", fontSize: 14, color: "#706A80" }}>{detalhe}</p>}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, overflowWrap: "anywhere" }}>{descricao}</span>
+            {info.parcelada && <span style={{ padding: "2px 6px", borderRadius: 7, background: "#ECE1F8", color: "#49335D", fontSize: 11, whiteSpace: "nowrap" }}>Parcela {info.numero}/{info.total}</span>}
+            {detalhe && <span style={{ fontSize: 11, color: "#706A80" }}>{detalhe}</span>}
           </div>
-          <span style={{ width: 130, flexShrink: 0, textAlign: "right", fontSize: 19, fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{fmt(c.valor)}</span>
+          <span style={{ flexShrink: 0, textAlign: "right", fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{fmt(c.valor)}</span>
         </div>;
       })}
     </div>
-    <div style={{ marginTop: 10, padding: "18px 22px", borderRadius: 14, background: roxo, color: "#FFFFFF", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 18 }}><span style={{ fontSize: 23, fontWeight: 700 }}>Total do mês</span><span style={{ fontSize: 32, fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{fmt(dados.total)}</span></div>
+    <div style={{ marginTop: 9, padding: "12px 14px", borderRadius: 12, background: roxo, color: "#FFFFFF", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}><span style={{ fontSize: 18, fontWeight: 700 }}>Total do mês</span><span style={{ fontSize: 25, fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{fmt(dados.total)}</span></div>
   </div>;
 }
