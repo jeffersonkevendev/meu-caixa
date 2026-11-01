@@ -659,7 +659,7 @@ function MeuCaixaApp({ usuario }) {
         arquivo = await new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Não foi possível criar a imagem. Tente exportar a planilha.")), "image/jpeg", 0.92));
       }
       baixarArquivo(arquivo, `${nome}.${formato === "planilha" ? "csv" : "jpg"}`);
-      setAvisoDownload({ tipo: "baixando", mensagem: "Baixando…", id: Date.now() });
+      setAvisoDownload({ tipo: "baixando", mensagem: "Baixando", id: Date.now() });
     } catch (erro) {
       console.error("Falha ao exportar cartão", erro);
       setAvisoDownload({ tipo: "erro", mensagem: erro.message || "Não foi possível gerar o arquivo. Tente novamente." });
@@ -1859,7 +1859,6 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
   const [erroExclusao, setErroExclusao] = useState("");
   const [buscaCompra, setBuscaCompra] = useState("");
   const [mostrarResumoPessoas, setMostrarResumoPessoas] = useState(false);
-  const [mostrarBusca, setMostrarBusca] = useState(false);
   const [ferramenta, setFerramenta] = useState(null);
 
   const pessoaFiltro = "todos";
@@ -1976,12 +1975,24 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
         {mesSelecionado === mesResumoInicial() && <h2 className="text-base font-bold mb-2" style={{ color: COR.ouro }}>Fatura Atual</h2>}
         <div className="rounded-2xl px-5 py-4" style={{ background: corPrincipal }}>
           {identificarBancoCartao(cartao) === "nubank" && <MarcaNubankFatura />}
-          <div className="flex items-center justify-between gap-3"><p className="fonte-mono text-3xl font-bold text-white">{valorVisivel(totalMes)}</p><div className="flex items-center gap-1 shrink-0"><button type="button" aria-label={buscaCompra || mostrarBusca ? "Limpar e fechar busca" : "Buscar compras"} title={buscaCompra || mostrarBusca ? "Limpar e fechar busca" : "Buscar compras"} onClick={() => { if (buscaCompra || mostrarBusca) { setBuscaCompra(""); setMostrarBusca(false); } else setMostrarBusca(true); }} className="p-2 rounded-full text-white">{buscaCompra || mostrarBusca ? <X size={22} /> : <Search size={22} />}</button><BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} cor="#FFFFFF" /></div></div>
+          <div className="flex items-center justify-between gap-3"><p className="fonte-mono text-3xl font-bold text-white">{valorVisivel(totalMes)}</p><BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} cor="#FFFFFF" /></div>
           {dataVencimentoCartao(cartao, mesSelecionado) && <p className="text-sm mt-2" style={{ color: "#FFFFFF" }}>Vencimento: {dataVencimentoCartao(cartao, mesSelecionado).slice(-2)} de {MESES[Number(mesSelecionado.slice(5, 7)) - 1]}</p>}
         </div>
       </div>
 
-      {mostrarBusca && <div className="flex items-center gap-2 rounded-2xl border px-3 bg-white oculta-impressao" style={{ borderColor: COR.linha }}><Search size={18} color={COR.tintaSuave} /><input autoFocus aria-label="Buscar compras" placeholder="Buscar compra ou pessoa" value={buscaCompra} onChange={(e) => setBuscaCompra(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") { setBuscaCompra(""); setMostrarBusca(false); } }} className="busca-compras flex-1 min-w-0 py-3 text-sm outline-none" /></div>}
+      <div className="flex items-center gap-2 rounded-2xl border px-3 bg-white shadow-sm oculta-impressao" style={{ borderColor: COR.linha }}>
+        <Search size={18} color={COR.tintaSuave} className="shrink-0" aria-hidden="true" />
+        <input
+          type="text"
+          aria-label="Buscar compras"
+          placeholder="Buscar compras..."
+          value={buscaCompra}
+          onChange={(e) => setBuscaCompra(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape") setBuscaCompra(""); }}
+          className="busca-compras flex-1 min-w-0 py-3 text-sm outline-none bg-transparent"
+        />
+        {buscaCompra && <button type="button" aria-label="Limpar busca" title="Limpar busca" onClick={() => setBuscaCompra("")} className="p-2 rounded-full shrink-0" style={{ color: COR.tintaSuave }}><X size={18} /></button>}
+      </div>
 
       {ativo && ferramentasHabilitadas && !mostrarResumoPessoas && !ferramenta && createPortal(<button type="button" aria-label="Abrir ferramentas do cartão" title="Ferramentas do cartão" onClick={() => setFerramenta("menu")} className="fixed z-40 rounded-full flex items-center justify-center oculta-impressao" style={{ width: 56, height: 56, right: "max(20px, calc((100vw - 672px) / 2 + 20px))", bottom: "calc(100px + env(safe-area-inset-bottom, 0px))", background: COR.ouro, color: "white", boxShadow: "0 6px 18px rgba(37,99,235,0.3)" }}><Plus size={28} /></button>, document.body)}
       {ferramenta === "menu" && <JanelaFerramentaCartao titulo="Ferramentas do cartão" onFechar={() => setFerramenta(null)} flutuante>
@@ -1993,7 +2004,7 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
           { nome: "Calculadora", Icon: IconeCalculadora, acao: () => { setFerramenta(null); onAbrirCalculadora(); } },
         ].map(({ nome, Icon, detalhe, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={acao} className="flex items-center gap-3 w-full text-left rounded-xl px-3 py-3 text-sm disabled:opacity-40" style={{ color: COR.tinta }}><Icon size={20} color={COR.ouro} /><span className="min-w-0 flex-1">{nome}{detalhe && <span className="block text-xs truncate mt-0.5" style={{ color: COR.tintaSuave }}>{detalhe}</span>}</span><ChevronRight size={16} color={COR.tintaSuave} /></button>)}</div>
       </JanelaFerramentaCartao>}
-      {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setBuscaCompra(nome); setMostrarBusca(true); setMostrarResumoPessoas(false); }} />}
+      {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setBuscaCompra(nome); setMostrarResumoPessoas(false); }} />}
       {ferramenta === "adicionar" && (
         <JanelaFerramentaCartao titulo="Adicionar compra" onFechar={() => { setMostrarForm(false); setFerramenta(null); }}><div className="rounded-2xl p-4 flex flex-col gap-3 oculta-impressao" style={{ background: COR.cartao, border: `1px solid ${COR.linha}` }}>
           <Campo label="Nome de quem comprou">
@@ -2497,10 +2508,14 @@ function AvisoDownload({ aviso, onFechar }) {
     const timer = setTimeout(onFechar, 4500);
     return () => clearTimeout(timer);
   }, [aviso, onFechar]);
-  return createPortal(<div className="fixed inset-x-4 z-[100] mx-auto max-w-sm rounded-2xl overflow-hidden border shadow-lg" role={aviso.tipo === "erro" ? "alert" : "status"} aria-live="polite" style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))", background: COR.cartao, borderColor: COR.linha }}>
-    <div className="flex gap-3 items-center p-4"><Download size={22} className={aviso.tipo === "preparando" ? "animate-pulse shrink-0" : "shrink-0"} style={{ color: aviso.tipo === "erro" ? COR.vermelho : COR.ouro }} /><div className="flex-1 min-w-0"><p className="text-sm font-semibold">{aviso.mensagem}</p>{aviso.tipo === "baixando" && <p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>Confira o arquivo nos downloads do navegador.</p>}</div><button type="button" aria-label="Fechar aviso de download" onClick={onFechar} className="p-1"><X size={18} /></button></div>
+  return createPortal(<div className="fixed inset-x-4 z-[100] mx-auto max-w-sm rounded-xl overflow-hidden shadow-lg" role={aviso.tipo === "erro" ? "alert" : "status"} aria-live="polite" style={{ bottom: "calc(96px + env(safe-area-inset-bottom, 0px))", background: aviso.tipo === "erro" ? COR.vermelho : "#2563EB", color: "#FFFFFF" }}>
+    <div className="flex gap-2 items-center px-4 py-2">
+      <Download size={20} className={aviso.tipo === "preparando" ? "animate-pulse shrink-0" : "shrink-0"} color="#FFFFFF" aria-hidden="true" />
+      <p className="flex-1 min-w-0 text-sm font-semibold" style={{ color: "#FFFFFF" }}>{aviso.tipo === "baixando" ? "Baixando" : aviso.mensagem}</p>
+      <button type="button" aria-label="Fechar aviso de download" onClick={onFechar} className="p-1" style={{ color: "#FFFFFF" }}><X size={18} /></button>
+    </div>
     <style>{`@keyframes meuCaixaBarraDownload { from { transform: scaleX(1); } to { transform: scaleX(0); } }`}</style>
-    {aviso.tipo !== "erro" && <div style={{ height: 4, background: "#DBEAFE" }}><div key={aviso.id || aviso.tipo} style={{ height: "100%", background: "#2563EB", transformOrigin: "left", animation: aviso.tipo === "baixando" ? "meuCaixaBarraDownload 4.5s linear forwards" : "none" }} /></div>}
+    {aviso.tipo !== "erro" && <div style={{ height: 2, background: "rgba(255,255,255,0.2)" }}><div key={aviso.id || aviso.tipo} style={{ height: "100%", background: "rgba(255,255,255,0.8)", transformOrigin: "left", animation: aviso.tipo === "baixando" ? "meuCaixaBarraDownload 4.5s linear forwards" : "none" }} /></div>}
   </div>, document.body);
 }
 
