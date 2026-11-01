@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal, flushSync } from "react-dom";
 import {
-  Bell, PawPrint, Pizza, Laptop, ShoppingBasket, Settings2, Search, ShoppingCart, Image as IconeImagem, Car, Utensils, Cross, Wifi, Flame, Gift, Smartphone, GraduationCap, Shirt, Dumbbell, HeartPulse, Clock, CalendarDays, Plus, Pencil, Trash2, Check, X, Wallet, CreditCard, ArrowRight, FileDown,
+  Receipt, LayoutGrid, Bell, PawPrint, Pizza, Laptop, ShoppingBasket, Settings2, Search, ShoppingCart, Image as IconeImagem, Car, Utensils, Cross, Wifi, Flame, Gift, Smartphone, GraduationCap, Shirt, Dumbbell, HeartPulse, Clock, CalendarDays, Plus, Pencil, Trash2, Check, X, Wallet, CreditCard, ArrowRight, FileDown,
   CheckCircle2, Circle, Download, LogOut, Mail, Lock, Eye, EyeOff, UserPlus, ShieldCheck,
   ArrowLeft, User, Phone, Calculator as IconeCalculadora, Delete, Home,
   BarChart3, MoreHorizontal, ChevronRight, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle,
@@ -496,6 +496,10 @@ function MeuCaixaApp({ usuario }) {
   const [mostrarListaCartoes, setMostrarListaCartoes] = useState(false);
   const [cartaoOpcoesId, setCartaoOpcoesId] = useState(null);
   const [mostrarCalculadora, setMostrarCalculadora] = useState(false);
+  const [painelCabecalho, setPainelCabecalho] = useState(null);
+  const ferramentasDespesasRef = useRef(null);
+  const ferramentasCartoesRef = useRef({});
+  useEffect(() => { setPainelCabecalho(null); }, [aba]);
   const [cartaoSelecionadoId, setCartaoSelecionadoId] = useLocalStorageState(`meu-caixa:${usuario.uid}:cartao-selecionado`, null);
   const [mostrarOrcamento, setMostrarOrcamento] = useState(false);
 
@@ -630,7 +634,7 @@ function MeuCaixaApp({ usuario }) {
     setAvisoDownload({ tipo: "preparando", mensagem: formato === "planilha" ? "Preparando planilha…" : "Preparando imagem…" });
     let canvas;
     try {
-      if (!dados.linhas?.length) throw new Error("Não há compras para exportar neste mês e filtro.");
+      if (!dados.linhas?.length) throw new Error("Não há lançamentos para exportar neste mês e filtro.");
       const nome = nomeArquivoRelatorio(dados);
       let arquivo;
       if (formato === "planilha") {
@@ -710,17 +714,35 @@ function MeuCaixaApp({ usuario }) {
       </div>}
 
       {/* cabeçalho */}
-      <header style={{ background: COR.papel }} className="px-5 pt-7 pb-0 oculta-impressao">
+      <header style={{ background: COR.papel, top: 0 }} className="sticky z-[45] px-5 pt-7 pb-1 oculta-impressao">
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COR.ouro }}>
                 <Wallet size={18} color="white" strokeWidth={2.5} />
               </div>
-              <h1 className="fonte-display text-2xl" style={{ color: COR.tinta }}>Meu Caixa</h1>
+              <h1 className="fonte-display text-xl min-[360px]:text-2xl whitespace-nowrap" style={{ color: COR.tinta }}>Meu Caixa</h1>
             </div>
-            <div className="relative flex items-center gap-3">
-              {aba === "inicio" && <AvisosVencimentos despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} pagamentosCartaoPagos={pagamentosCartaoPagos} onAbrir={(mes) => { setAtalhoDespesas({ filtro: "Pendentes", mes }); setAba("despesas"); setCartaoSelecionadoId(null); }} />}
+            <div className="relative flex items-center gap-1 sm:gap-3 shrink-0">
+              <CortinaCabecalho id="ferramentas-cabecalho" label="Ferramentas" Icon={LayoutGrid} aberto={painelCabecalho === "ferramentas"} onAlternar={() => setPainelCabecalho((atual) => atual === "ferramentas" ? null : "ferramentas")} onFechar={() => setPainelCabecalho(null)} setaDireita={94}>
+                {[
+                  { nome: aba.startsWith("cartao-") ? "Adicionar compra" : "Adicionar despesa", Icon: aba.startsWith("cartao-") ? ShoppingCart : Receipt, acao: () => {
+                    if (aba.startsWith("cartao-")) ferramentasCartoesRef.current[aba]?.adicionar();
+                    else { setAba("despesas"); ferramentasDespesasRef.current?.adicionar(); }
+                  } },
+                  { nome: "Gerar imagem", Icon: IconeImagem, desabilitado: gerandoImagem, acao: () => {
+                    if (aba.startsWith("cartao-")) ferramentasCartoesRef.current[aba]?.exportar("imagem");
+                    else { setAba("despesas"); ferramentasDespesasRef.current?.exportar("imagem"); }
+                  } },
+                  { nome: "Gerar planilha (CSV)", Icon: FileDown, desabilitado: gerandoImagem, acao: () => {
+                    if (aba.startsWith("cartao-")) ferramentasCartoesRef.current[aba]?.exportar("planilha");
+                    else { setAba("despesas"); ferramentasDespesasRef.current?.exportar("planilha"); }
+                  } },
+                  ...(aba.startsWith("cartao-") ? [{ nome: "Resumo por pessoa", Icon: User, acao: () => ferramentasCartoesRef.current[aba]?.resumo() }] : []),
+                  { nome: "Calculadora", Icon: IconeCalculadora, acao: () => setMostrarCalculadora(true) },
+                ].map(({ nome, Icon, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={() => { setPainelCabecalho(null); acao(); }} className="w-full flex items-center gap-4 px-4 py-4 text-left text-sm disabled:opacity-40" style={{ color: COR.tinta, borderBottom: `1px solid ${COR.linha}` }}><Icon size={22} className="shrink-0" color={COR.tintaSuave} /><span>{nome}</span></button>)}
+              </CortinaCabecalho>
+              <AvisosVencimentos aberto={painelCabecalho === "avisos"} onAlternar={() => setPainelCabecalho((atual) => atual === "avisos" ? null : "avisos")} onFechar={() => setPainelCabecalho(null)} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} pagamentosCartaoPagos={pagamentosCartaoPagos} onAbrir={(mes) => { setAtalhoDespesas({ filtro: "Pendentes", mes }); setAba("despesas"); setCartaoSelecionadoId(null); }} />
               <button aria-label="Abrir perfil" onClick={() => setAba("perfil")} className="w-8 h-8 rounded-full overflow-hidden border-2" style={{ borderColor: COR.linha }}>
                 {usuario.photoURL ? (
                   <img src={usuario.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -761,11 +783,12 @@ function MeuCaixaApp({ usuario }) {
               pagamentosCartaoPagos={pagamentosCartaoPagos}
               onAbrirDespesas={(filtro, mes) => { setAtalhoDespesas({ filtro, mes }); setAba("despesas"); setCartaoSelecionadoId(null); }}
               onIrPara={(destino) => { const cartao = cartoes.find((c) => destino === `cartao-${c.id}`); if (cartao) setCartaoSelecionadoId(cartao.id); setAba(destino); }}
-              onAbrirCalculadora={() => setMostrarCalculadora(true)}
             />
           </div>
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao">
             <DespesasTab
+              ferramentasRef={ferramentasDespesasRef}
+              onGerarRelatorio={gerarRelatorio}
               atalho={atalhoDespesas}
               despesas={despesas}
               onAtualizarDespesas={setDespesas}
@@ -786,10 +809,8 @@ function MeuCaixaApp({ usuario }) {
           {cartoes.map((cartao) => (
             <div key={cartao.id} className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0">
               <CartaoTab
+                ferramentasRef={ferramentasCartoesRef}
                 cartao={cartao}
-                ativo={aba === `cartao-${cartao.id}`}
-                ferramentasHabilitadas={!mostrarListaCartoes && !cartaoParaExcluir && !mostrarCalculadora && !ultimaExclusao}
-                onAbrirCalculadora={() => setMostrarCalculadora(true)}
                 onAtualizarCompras={(novasCompras) =>
                   setCartoes((prev) => prev.map((c) => (c.id === cartao.id ? { ...c, compras: typeof novasCompras === "function" ? novasCompras(c.compras || []) : novasCompras } : c)))
                 }
@@ -878,10 +899,6 @@ function MeuCaixaApp({ usuario }) {
       {ultimaExclusao && <div role="status" aria-live="polite" className="fixed left-4 right-4 z-50 max-w-sm mx-auto rounded-2xl p-3 flex items-center gap-3 oculta-impressao" style={{ bottom: "calc(82px + env(safe-area-inset-bottom, 0px))", background: COR.tinta, color: "white", boxShadow: "0 8px 24px rgba(15,23,42,0.2)" }}>
         <span className="flex-1 text-sm">{ultimaExclusao.label}</span><button onClick={desfazerExclusao} className="text-sm font-bold py-2" style={{ color: "#93C5FD" }}>Desfazer</button><button aria-label="Fechar aviso de exclusão" onClick={() => setUltimaExclusao(null)} className="p-1"><X size={16} /></button>
       </div>}
-
-      {aba === "despesas" && !mostrarCalculadora && !mostrarListaCartoes && !cartaoParaExcluir && !ultimaExclusao && (
-        <button type="button" aria-label="Abrir calculadora" title="Calculadora" onClick={() => setMostrarCalculadora(true)} className="fixed z-40 rounded-full flex items-center justify-center oculta-impressao" style={{ width: 56, height: 56, right: "max(20px, calc((100vw - 672px) / 2 + 20px))", bottom: "calc(100px + env(safe-area-inset-bottom, 0px))", background: COR.ouro, color: "#FFFFFF", boxShadow: "0 6px 18px rgba(37,99,235,0.3)" }}><IconeCalculadora size={25} /></button>
-      )}
 
       <Calculadora aberta={mostrarCalculadora} aoFechar={() => setMostrarCalculadora(false)} />
 
@@ -1130,52 +1147,63 @@ function listarAvisosVencimentos(despesas, cartoes, pessoas, pagamentos, hoje) {
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.nome.localeCompare(b.nome));
 }
 
-function AvisosVencimentos({ despesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, onAbrir }) {
-  const [aberto, setAberto] = useState(false);
-  const dataLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
-  const [hoje, setHoje] = useState(dataLocal);
-  useEffect(() => { const timer = setInterval(() => setHoje(dataLocal()), 60000); return () => clearInterval(timer); }, []);
-  const botaoRef = useRef(null), fecharRef = useRef(null);
+function CortinaCabecalho({ id, label, Icon, aberto, onAlternar, onFechar, badge, setaDireita = 52, children }) {
+  const botaoRef = useRef(null), painelRef = useRef(null);
+  const [presente, setPresente] = useState(aberto);
+  useEffect(() => {
+    if (aberto) { setPresente(true); return; }
+    const timer = setTimeout(() => setPresente(false), 200);
+    return () => clearTimeout(timer);
+  }, [aberto]);
   useEffect(() => {
     if (!aberto) return;
-    const anterior = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    fecharRef.current?.focus();
-    const tecla = (e) => {
-      if (e.key === "Escape") setAberto(false);
-      if (e.key === "Tab") {
-        const botoes = e.currentTarget === document ? document.getElementById("avisos-vencimentos")?.querySelectorAll("button") : null;
-        if (!botoes?.length) return;
-        const primeiro = botoes[0], ultimo = botoes[botoes.length - 1];
-        if (e.shiftKey && document.activeElement === primeiro) { e.preventDefault(); ultimo.focus(); }
-        else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro.focus(); }
-      }
-    };
+    const fora = (e) => { if (!botaoRef.current?.contains(e.target) && !painelRef.current?.contains(e.target)) onFechar(); };
+    const tecla = (e) => { if (e.key === "Escape") { onFechar(); botaoRef.current?.focus(); } };
+    document.addEventListener("pointerdown", fora);
     document.addEventListener("keydown", tecla);
-    return () => { document.body.style.overflow = anterior; document.removeEventListener("keydown", tecla); botaoRef.current?.focus(); };
-  }, [aberto]);
-  const avisos = listarAvisosVencimentos(despesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, hoje);
-  const texto = (dias) => dias < 0 ? `Atrasada há ${-dias} ${dias === -1 ? "dia" : "dias"}` : dias === 0 ? "Vence hoje" : dias === 1 ? "Vence amanhã" : `Vence em ${dias} dias`;
+    return () => { document.removeEventListener("pointerdown", fora); document.removeEventListener("keydown", tecla); };
+  }, [aberto, onFechar]);
+  useEffect(() => {
+    if (!painelRef.current) return;
+    if (aberto) painelRef.current.removeAttribute("inert");
+    else painelRef.current.setAttribute("inert", "");
+  }, [aberto, presente]);
   return <>
-    <button ref={botaoRef} type="button" aria-label={`Avisos de vencimento${avisos.length ? `: ${avisos.length}` : ""}`} aria-haspopup="dialog" aria-expanded={aberto} onClick={() => setAberto(true)} className="relative p-2 rounded-full" style={{ color: COR.tintaSuave }}>
-      <Bell size={22} />{avisos.length > 0 && <span className="absolute -top-1 -right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] text-white" style={{ background: COR.vermelho }}>{avisos.length > 99 ? "99+" : avisos.length}</span>}
+    <button ref={botaoRef} type="button" aria-label={badge ? `${label}: ${badge}` : label} aria-haspopup="dialog" aria-expanded={aberto} aria-controls={id} onClick={onAlternar} className="relative p-2 rounded-full" style={{ color: COR.tintaSuave }}>
+      <Icon size={22} />{badge > 0 && <span className="absolute -top-1 -right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] text-white" style={{ background: COR.vermelho }}>{badge > 99 ? "99+" : badge}</span>}
     </button>
-    {aberto && createPortal(<div className="fixed inset-0 z-[90] flex items-center justify-center p-4" style={{ background: "rgba(15,23,42,0.35)" }} onClick={() => setAberto(false)}>
-      <section id="avisos-vencimentos" role="dialog" aria-modal="true" aria-labelledby="titulo-avisos" onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-3xl p-5 overflow-y-auto" style={{ background: COR.cartao, maxHeight: "85dvh" }}>
-        <div className="flex items-center justify-between gap-3"><h2 id="titulo-avisos" className="text-lg font-semibold">Avisos de vencimento</h2><button ref={fecharRef} type="button" aria-label="Fechar avisos" onClick={() => setAberto(false)} className="p-2"><X size={22} /></button></div>
-        <p className="text-sm mt-2 mb-3" style={{ color: COR.tintaSuave }}>Contas atrasadas e dos próximos 7 dias.</p>
-        {!avisos.length && <p className="text-sm py-6 text-center" style={{ color: COR.tintaSuave }}>Tudo em dia! Nenhuma conta para este período.</p>}
-        {avisos.map((a) => <button type="button" key={a.id} onClick={() => { setAberto(false); onAbrir(chaveDoMes(a.vencimento)); }} className="w-full text-left flex items-center gap-3 py-4 border-b" style={{ borderColor: COR.linha }}>
-          <span className="p-2 rounded-full shrink-0" style={{ background: a.dias < 0 ? "#FEF2F2" : COR.ouroClaro, color: a.dias < 0 ? COR.vermelho : COR.ouro }}><Clock size={19} /></span>
-          <span className="min-w-0 flex-1"><span className="block text-sm break-words">{a.nome}</span><span className="block text-xs mt-1" style={{ color: a.dias <= 0 ? COR.vermelho : COR.tintaSuave }}>{texto(a.dias)} · {a.vencimento.split("-").reverse().join("/")}</span></span><ChevronRight size={18} style={{ color: COR.tintaSuave }} />
-        </button>)}
-      </section>
-    </div>, document.body)}
+    <style>{`
+      @keyframes cortinaAbrir { from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-6px); } to { opacity: 1; clip-path: inset(-12px -24px -24px -24px); transform: translateY(0); } }
+      @keyframes cortinaFechar { from { opacity: 1; clip-path: inset(-12px -24px -24px -24px); transform: translateY(0); } to { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-6px); } }
+      @media (prefers-reduced-motion: reduce) { .cortina-cabecalho { animation-duration: 1ms !important; } }
+    `}</style>
+    {presente && <section ref={painelRef} id={id} role="dialog" aria-label={label} aria-hidden={!aberto} className="absolute right-0 rounded-2xl border shadow-lg cortina-cabecalho" style={{ top: "calc(100% + 12px)", width: "min(360px, calc(100vw - 40px))", background: COR.cartao, borderColor: COR.linha, color: COR.tinta, zIndex: 60, pointerEvents: aberto ? "auto" : "none", animation: `${aberto ? "cortinaAbrir 240ms" : "cortinaFechar 180ms"} ease both` }}>
+      <span aria-hidden="true" style={{ position: "absolute", top: -6, right: setaDireita, width: 12, height: 12, background: COR.cartao, borderLeft: `1px solid ${COR.linha}`, borderTop: `1px solid ${COR.linha}`, transform: "rotate(45deg)" }} />
+      <div className="relative rounded-2xl overflow-y-auto" style={{ maxHeight: "min(65dvh, 480px)", background: COR.cartao }}>{children}</div>
+    </section>}
   </>;
 }
 
+function AvisosVencimentos({ despesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, onAbrir, aberto, onAlternar, onFechar }) {
+  const dataLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const [hoje, setHoje] = useState(dataLocal);
+  useEffect(() => { const timer = setInterval(() => setHoje(dataLocal()), 60000); return () => clearInterval(timer); }, []);
+  const avisos = listarAvisosVencimentos(despesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, hoje);
+  const texto = (a) => a.dias < 0 ? `Atrasada há ${-a.dias} ${a.dias === -1 ? "dia" : "dias"}` : a.dias === 0 ? "Vence hoje" : a.dias === 1 ? "Vence amanhã" : `Vence em ${Number(a.vencimento.slice(-2))} ${MESES[Number(a.vencimento.slice(5, 7)) - 1].slice(0, 3).toLowerCase()}`;
+  return <CortinaCabecalho id="avisos-vencimentos" label="Avisos de vencimento" Icon={Bell} aberto={aberto} onAlternar={onAlternar} onFechar={onFechar} badge={avisos.length}>
+    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b" style={{ borderColor: COR.linha }}><h2 className="text-base font-semibold">Avisos de vencimento</h2><button type="button" aria-label="Fechar avisos" onClick={onFechar} className="p-1" style={{ color: COR.tintaSuave }}><X size={20} /></button></div>
+    {!avisos.length && <p className="text-sm px-4 py-6 text-center" style={{ color: COR.tintaSuave }}>Tudo em dia! Nenhuma conta para este período.</p>}
+    {avisos.map((a) => <button type="button" key={a.id} onClick={() => { onFechar(); onAbrir(chaveDoMes(a.vencimento)); }} className="w-full text-left flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: COR.linha }}>
+      <CalendarDays size={23} className="shrink-0" color={a.dias < 0 ? COR.vermelho : a.dias <= 2 ? "#F59E0B" : COR.tintaSuave} />
+      <span className="min-w-0 flex-1"><span className="block text-sm break-words">{a.nome}</span><span className="block text-xs mt-1" style={{ color: a.dias < 0 ? COR.vermelho : COR.tintaSuave }}>{texto(a)}</span></span>
+      <span className="text-sm whitespace-nowrap">{fmt(a.valor)}</span>
+    </button>)}
+    <button type="button" onClick={() => { onFechar(); onAbrir(avisos.length ? chaveDoMes(avisos[0].vencimento) : chaveDoMes(hoje)); }} className="w-full flex items-center justify-between gap-2 px-4 py-4 text-sm text-left" style={{ color: COR.ouro }}>Ver despesas pendentes<ChevronRight size={20} /></button>
+  </CortinaCabecalho>;
+}
+
 // ===================== ABA INÍCIO =====================
-function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasAutomaticas, primeiroNome, pagamentosCartaoPagos, onIrPara, onAbrirDespesas, onAbrirCalculadora }) {
+function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasAutomaticas, primeiroNome, pagamentosCartaoPagos, onIrPara, onAbrirDespesas }) {
   const [ocultarValores, setOcultarValores] = useState(false);
   const valorVisivel = (valor) => ocultarValores ? "R$ ••••" : fmt(valor);
   const [mesAtual, setMesAtual] = useState(() => mesResumoInicial());
@@ -1280,14 +1308,7 @@ function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasA
       <p className="text-sm font-semibold mb-2" style={{ color: COR.texto }}>Atalhos</p>
       <div className="grid grid-cols-2 gap-3">
       <button onClick={() => onIrPara("despesas")} className="flex items-center justify-center gap-2 rounded-2xl p-4 text-sm font-semibold" style={{ background: COR.cartao, border: `1px solid ${COR.linha}`, color: COR.ouro }}><Plus size={18} />Despesas</button>
-      <button
-        onClick={onAbrirCalculadora}
-        className="flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white"
-        style={{ background: COR.ouro }}
-      >
-        <IconeCalculadora size={16} /> Calculadora
-      </button>
-      <button onClick={() => onIrPara("graficos")} className="col-span-2 flex items-center justify-center gap-2 rounded-2xl p-4 text-sm font-semibold" style={{ background: COR.ouroClaro, color: COR.ouro }}><BarChart3 size={18} />Gráficos</button>
+      <button onClick={() => onIrPara("graficos")} className="flex items-center justify-center gap-2 rounded-2xl p-4 text-sm font-semibold" style={{ background: COR.ouroClaro, color: COR.ouro }}><BarChart3 size={18} />Gráficos</button>
       </div>
       </div>
     </div>
@@ -1377,7 +1398,7 @@ function EntradasTab({ receitas, onAtualizarReceitas, onRegistrarExclusao, onVol
   </section>;
 }
 
-function DespesasTab({ atalho, despesas, onRegistrarExclusao, onAtualizarDespesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, onAtualizarPagamentosCartao }) {
+function DespesasTab({ ferramentasRef, onGerarRelatorio, atalho, despesas, onRegistrarExclusao, onAtualizarDespesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, onAtualizarPagamentosCartao }) {
   const [mesSelecionado, setMesSelecionado] = useState(mesAtualChave());
   const [mostrarForm, setMostrarForm] = useState(false);
   const [filtro, setFiltro] = useState("Todas");
@@ -1452,6 +1473,21 @@ function DespesasTab({ atalho, despesas, onRegistrarExclusao, onAtualizarDespesa
   const totalPagoCartoes = totaisCartoes.filter((f) => f.total > 0 && f.pago).reduce((s, f) => s + f.total, 0);
   const totalPago = totalPagoDespesas + totalPagoCartoes;
   const totalPendente = totalMes - totalPago;
+
+  useEffect(() => {
+    const acoes = {
+      adicionar: () => setMostrarForm(true),
+      exportar: (formato) => {
+        const registros = [
+          ...linhasVisiveis.map((d) => ({ id: d.id, compra: d.descricao, valor: d.valor, data: d.vencimento, nome: d.paga ? "Paga" : "Pendente" })),
+          ...cartoesVisiveis.map((c) => ({ id: c.id, compra: c.label, valor: c.total, data: dataVencimentoCartao({ diaVencimento: c.diaVencimento }, mesSelecionado), nome: c.pago ? "Paga" : "Pendente" })),
+        ];
+        onGerarRelatorio({ tipo: "despesas", nomeCartao: "Despesas", pessoaFiltro: filtro, mostrarPessoa: true, mesSelecionado, linhas: registros, total: registros.reduce((s, d) => s + d.valor, 0) }, formato);
+      },
+    };
+    ferramentasRef.current = acoes;
+    return () => { if (ferramentasRef.current === acoes) ferramentasRef.current = null; };
+  });
 
   const toggleCartaoPago = (chave) => {
     onAtualizarPagamentosCartao((prev) => ({ ...prev, [chave]: !prev[chave] }));
@@ -1836,7 +1872,7 @@ function OpcaoDividirCompra({ ativa, onAtiva, pessoa, onPessoa, nome, valor, neg
 }
 
 // ===================== ABA DE CARTÃO (reutilizada por todos os cartões) =====================
-function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, primeiroNomeUsuario, onAtualizarRecebimentos, onAtualizarCompras, onGerarPdf, gerandoImagem, onPedirExclusao, pessoasAutomaticas, onRegistrarExclusao }) {
+function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRecebimentos, onAtualizarCompras, onGerarPdf, gerandoImagem, onPedirExclusao, pessoasAutomaticas, onRegistrarExclusao }) {
   const [ocultarValores, setOcultarValores] = useState(false);
   const valorVisivel = (valor) => ocultarValores ? "R$ ••••" : fmt(valor);
   const { nome: nomeCartao, cor: corPrincipal, corClara, compras } = cartao;
@@ -1967,6 +2003,17 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
     onGerarPdf({ nomeCartao, pessoaFiltro, mostrarPessoa: true, mesSelecionado, linhas: linhasMes, total: totalMes, cartao: { nome: nomeCartao, cor: corPrincipal, diaVencimento: diaVencimentoCartao(cartao) } }, formato);
   };
 
+  useEffect(() => {
+    const chave = `cartao-${cartao.id}`;
+    const acoes = {
+      adicionar: () => { setMesCompra(mesSelecionado); setMostrarForm(true); setFerramenta("adicionar"); },
+      exportar: (formato) => gerarRelatorioPdf(formato),
+      resumo: () => setMostrarResumoPessoas(true),
+    };
+    ferramentasRef.current[chave] = acoes;
+    return () => { if (ferramentasRef.current[chave] === acoes) delete ferramentasRef.current[chave]; };
+  });
+
   return (
     <div className="flex flex-col gap-6">
       <CarrosselMeses meses={meses} mesSelecionado={mesSelecionado} onSelecionar={setMesSelecionado} corAtiva={corPrincipal} />
@@ -1994,16 +2041,6 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
         {buscaCompra && <button type="button" aria-label="Limpar busca" title="Limpar busca" onClick={() => setBuscaCompra("")} className="p-2 rounded-full shrink-0" style={{ color: COR.tintaSuave }}><X size={18} /></button>}
       </div>
 
-      {ativo && ferramentasHabilitadas && !mostrarResumoPessoas && !ferramenta && createPortal(<button type="button" aria-label="Abrir ferramentas do cartão" title="Ferramentas do cartão" onClick={() => setFerramenta("menu")} className="fixed z-40 rounded-full flex items-center justify-center oculta-impressao" style={{ width: 56, height: 56, right: "max(20px, calc((100vw - 672px) / 2 + 20px))", bottom: "calc(100px + env(safe-area-inset-bottom, 0px))", background: COR.ouro, color: "white", boxShadow: "0 6px 18px rgba(37,99,235,0.3)" }}><Plus size={28} /></button>, document.body)}
-      {ferramenta === "menu" && <JanelaFerramentaCartao titulo="Ferramentas do cartão" onFechar={() => setFerramenta(null)} flutuante>
-        <div className="flex flex-col gap-1">{[
-          { nome: "Adicionar compra", Icon: ShoppingCart, acao: () => { setMesCompra(mesSelecionado); setMostrarForm(true); setFerramenta("adicionar"); } },
-          { nome: gerandoImagem ? "Gerando imagem..." : "Gerar imagem", Icon: IconeImagem, desabilitado: gerandoImagem || !linhasMes.length, acao: () => { setFerramenta(null); gerarRelatorioPdf(); } },
-          { nome: "Gerar planilha (CSV)", Icon: FileDown, desabilitado: gerandoImagem || !linhasMes.length, acao: () => { setFerramenta(null); gerarRelatorioPdf("planilha"); } },
-          { nome: "Resumo por pessoa", Icon: User, acao: () => { setFerramenta(null); setMostrarResumoPessoas(true); } },
-          { nome: "Calculadora", Icon: IconeCalculadora, acao: () => { setFerramenta(null); onAbrirCalculadora(); } },
-        ].map(({ nome, Icon, detalhe, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={acao} className="flex items-center gap-3 w-full text-left rounded-xl px-3 py-3 text-sm disabled:opacity-40" style={{ color: COR.tinta }}><Icon size={20} color={COR.ouro} /><span className="min-w-0 flex-1">{nome}{detalhe && <span className="block text-xs truncate mt-0.5" style={{ color: COR.tintaSuave }}>{detalhe}</span>}</span><ChevronRight size={16} color={COR.tintaSuave} /></button>)}</div>
-      </JanelaFerramentaCartao>}
       {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setBuscaCompra(nome); setMostrarResumoPessoas(false); }} />}
       {ferramenta === "adicionar" && (
         <JanelaFerramentaCartao titulo="Adicionar compra" onFechar={() => { setMostrarForm(false); setFerramenta(null); }}><div className="rounded-2xl p-4 flex flex-col gap-3 oculta-impressao" style={{ background: COR.cartao, border: `1px solid ${COR.linha}` }}>
@@ -2483,7 +2520,7 @@ function gerarCsvCartao(dados) {
   };
   const celula = (valor) => `"${String(valor).replace(/"/g, '""')}"`;
   const valor = (v) => Number(v || 0).toFixed(2).replace(".", ",");
-  const linhas = [["Cartão", "Mês", "Data", "Compra", "Pessoa", "Parcela", "Valor (R$)"]];
+  const linhas = [[dados.tipo === "despesas" ? "Relatório" : "Cartão", "Mês", "Data", dados.tipo === "despesas" ? "Despesa" : "Compra", dados.tipo === "despesas" ? "Situação" : "Pessoa", "Parcela", "Valor (R$)"]];
   for (const c of dados.linhas) {
     const parcela = dadosParcelamento(c);
     linhas.push([textoSeguro(dados.nomeCartao), dados.mesSelecionado, String(c.data || "").split("-").reverse().join("/"), textoSeguro(c.compra), textoSeguro(c.nome), parcela.parcelada ? `${parcela.numero}/${parcela.total}` : "", valor(c.valor)]);
@@ -2528,13 +2565,13 @@ function RelatorioImagem({ dados }) {
     <div style={{ position: "relative", padding: "0 8px 22px", minHeight: 190 }}>
       <div style={{ position: "absolute", right: -8, top: 10 }}><IlustracaoRelatorio nubank={identificarBancoCartao(cartao) === "nubank"} /></div>
       <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: 3, color: roxo, margin: "0 0 22px", textTransform: "uppercase" }}>{nomeBanco}</p>
-      <h1 style={{ position: "relative", fontSize: 34, fontWeight: 700, lineHeight: 1.15, margin: "0 0 6px", color: roxo }}>Relatório de compras</h1>
+      <h1 style={{ position: "relative", fontSize: 34, fontWeight: 700, lineHeight: 1.15, margin: "0 0 6px", color: roxo }}>{dados.tipo === "despesas" ? "Relatório de despesas" : "Relatório de compras"}</h1>
       <h2 style={{ position: "relative", fontSize: 27, fontWeight: 700, margin: "0 0 12px", maxWidth: 430 }}>{dados.nomeCartao}</h2>
-      <p style={{ position: "relative", fontSize: 18, color: "#5D5871", lineHeight: 1.4, margin: "0 0 6px", maxWidth: 455 }}>{dados.pessoaFiltro === "todos" ? "Todas as pessoas" : dados.pessoaFiltro} • {rotuloDoMes(dados.mesSelecionado)}</p>
+      <p style={{ position: "relative", fontSize: 18, color: "#5D5871", lineHeight: 1.4, margin: "0 0 6px", maxWidth: 455 }}>{dados.tipo === "despesas" ? dados.pessoaFiltro : dados.pessoaFiltro === "todos" ? "Todas as pessoas" : dados.pessoaFiltro} • {rotuloDoMes(dados.mesSelecionado)}</p>
       <p style={{ fontSize: 13, color: "#706A80", margin: 0 }}>Gerado em {new Date().toLocaleDateString("pt-BR")}</p>
     </div>
     <div style={{ borderRadius: 14, overflow: "hidden", border: "1px solid #F0EAF7" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 20px", background: "#EFE7FA", color: roxo, fontSize: 20, fontWeight: 700 }}><span>Compra</span><span>Valor</span></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 20px", background: "#EFE7FA", color: roxo, fontSize: 20, fontWeight: 700 }}><span>{dados.tipo === "despesas" ? "Despesa" : "Compra"}</span><span>Valor</span></div>
       {dados.linhas.map((c, i) => {
         const info = dadosParcelamento(c);
         const parenteses = (info.descricao || "").match(/^(.*?)\s*\(([^)]+)\)\s*$/);
