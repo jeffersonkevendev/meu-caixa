@@ -41,6 +41,8 @@ const MESES = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
+const TAMANHO_ICONE_CABECALHO = 24;
+
 const COR = {
   papel: "#F7F9FC",
   papelEscuro: "#EEF2F7",
@@ -744,9 +746,9 @@ function MeuCaixaApp({ usuario }) {
               </CortinaCabecalho>
               <AvisosVencimentos aberto={painelCabecalho === "avisos"} onAlternar={() => setPainelCabecalho((atual) => atual === "avisos" ? null : "avisos")} onFechar={() => setPainelCabecalho(null)} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} pagamentosCartaoPagos={pagamentosCartaoPagos} onAbrir={(mes) => { setAtalhoDespesas({ filtro: "Pendentes", mes }); setAba("despesas"); setCartaoSelecionadoId(null); }} />
               <button aria-label="Abrir perfil" onClick={() => setAba("perfil")} className="flex items-center justify-center shrink-0 rounded-full" style={{ width: 32, height: 32, padding: 4 }}>
-                <span className="rounded-full overflow-hidden flex items-center justify-center border" style={{ width: 24, height: 24, borderColor: COR.linha }}>
+                <span className="rounded-full overflow-hidden flex items-center justify-center" style={{ width: TAMANHO_ICONE_CABECALHO, height: TAMANHO_ICONE_CABECALHO, flexShrink: 0 }}>
                   {usuario.photoURL ? (
-                    <img src={usuario.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={usuario.photoURL} alt="" className="w-full h-full object-cover" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} referrerPolicy="no-referrer" />
                   ) : (
                     <span className="flex items-center justify-center w-full h-full text-xs font-bold" style={{ background: COR.ouro, color: COR.texto }}>
                       {(usuario.displayName || usuario.email || "?").charAt(0).toUpperCase()}
@@ -1172,7 +1174,7 @@ function CortinaCabecalho({ id, label, Icon, aberto, onAlternar, onFechar, badge
   }, [aberto, presente]);
   return <>
     <button ref={botaoRef} type="button" aria-label={badge ? `${label}: ${badge}` : label} aria-haspopup="dialog" aria-expanded={aberto} aria-controls={id} onClick={onAlternar} className="relative flex items-center justify-center shrink-0 rounded-full" style={{ color: COR.tintaSuave, width: 32, height: 32, padding: 4 }}>
-      <Icon size={24} />{badge > 0 && <span className="absolute rounded-full px-1 flex items-center justify-center text-white" style={{ background: COR.vermelho, top: -3, right: -1, minWidth: 16, height: 16, fontSize: 9 }}>{badge > 99 ? "99+" : badge}</span>}
+      <Icon size={TAMANHO_ICONE_CABECALHO} />{badge > 0 && <span className="absolute rounded-full px-1 flex items-center justify-center text-white" style={{ background: COR.vermelho, top: -3, right: -1, minWidth: 16, height: 16, fontSize: 9 }}>{badge > 99 ? "99+" : badge}</span>}
     </button>
     <style>{`
       @keyframes cortinaAbrir { from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-6px); } to { opacity: 1; clip-path: inset(-12px -24px -24px -24px); transform: translateY(0); } }
@@ -1193,7 +1195,6 @@ function AvisosVencimentos({ despesas, cartoes, pessoasAutomaticas, pagamentosCa
   const avisos = listarAvisosVencimentos(despesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, hoje);
   const texto = (a) => a.dias < 0 ? `Atrasada há ${-a.dias} ${a.dias === -1 ? "dia" : "dias"}` : a.dias === 0 ? "Vence hoje" : a.dias === 1 ? "Vence amanhã" : `Vence em ${Number(a.vencimento.slice(-2))} ${MESES[Number(a.vencimento.slice(5, 7)) - 1].slice(0, 3).toLowerCase()}`;
   return <CortinaCabecalho id="avisos-vencimentos" label="Avisos de vencimento" Icon={Bell} aberto={aberto} onAlternar={onAlternar} onFechar={onFechar} badge={avisos.length} largura="min(300px, calc(100vw - 80px))">
-    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b" style={{ borderColor: COR.linha }}><h2 className="text-sm font-bold" style={{ fontSize: 14, fontWeight: 700, lineHeight: "20px" }}>Avisos de vencimento</h2><button type="button" aria-label="Fechar avisos" onClick={onFechar} className="p-1" style={{ color: COR.tintaSuave }}><X size={18} /></button></div>
     {!avisos.length && <p className="text-sm px-4 py-6 text-center" style={{ color: COR.tintaSuave }}>Tudo em dia! Nenhuma conta para este período.</p>}
     {avisos.map((a) => <button type="button" key={a.id} onClick={() => { onFechar(); onAbrir(chaveDoMes(a.vencimento)); }} className="w-full text-left flex items-center gap-2 px-3 py-3 border-b" style={{ borderColor: COR.linha, padding: "12px", lineHeight: "20px" }}>
       <CalendarDays size={20} className="shrink-0" color={a.dias < 0 ? COR.vermelho : a.dias <= 2 ? "#F59E0B" : COR.tintaSuave} />
