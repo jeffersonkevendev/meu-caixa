@@ -723,8 +723,8 @@ function MeuCaixaApp({ usuario }) {
               </div>
               <h1 className="fonte-display text-xl min-[360px]:text-2xl whitespace-nowrap" style={{ color: COR.tinta }}>Meu Caixa</h1>
             </div>
-            <div className="relative flex items-center gap-1 sm:gap-3 shrink-0">
-              <CortinaCabecalho id="ferramentas-cabecalho" label="Ferramentas" Icon={LayoutGrid} aberto={painelCabecalho === "ferramentas"} onAlternar={() => setPainelCabecalho((atual) => atual === "ferramentas" ? null : "ferramentas")} onFechar={() => setPainelCabecalho(null)} setaDireita={94}>
+            <div className="relative flex items-center shrink-0" style={{ gap: 4 }}>
+              <CortinaCabecalho id="ferramentas-cabecalho" label="Ferramentas" Icon={LayoutGrid} aberto={painelCabecalho === "ferramentas"} onAlternar={() => setPainelCabecalho((atual) => atual === "ferramentas" ? null : "ferramentas")} onFechar={() => setPainelCabecalho(null)} setaDireita={82} largura="min(280px, calc(100vw - 96px))">
                 {[
                   { nome: aba.startsWith("cartao-") ? "Adicionar compra" : "Adicionar despesa", Icon: aba.startsWith("cartao-") ? ShoppingCart : Receipt, acao: () => {
                     if (aba.startsWith("cartao-")) ferramentasCartoesRef.current[aba]?.adicionar();
@@ -740,17 +740,19 @@ function MeuCaixaApp({ usuario }) {
                   } },
                   ...(aba.startsWith("cartao-") ? [{ nome: "Resumo por pessoa", Icon: User, acao: () => ferramentasCartoesRef.current[aba]?.resumo() }] : []),
                   { nome: "Calculadora", Icon: IconeCalculadora, acao: () => setMostrarCalculadora(true) },
-                ].map(({ nome, Icon, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={() => { setPainelCabecalho(null); acao(); }} className="w-full flex items-center gap-4 px-4 py-4 text-left text-sm disabled:opacity-40" style={{ color: COR.tinta, borderBottom: `1px solid ${COR.linha}` }}><Icon size={22} className="shrink-0" color={COR.tintaSuave} /><span>{nome}</span></button>)}
+                ].map(({ nome, Icon, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={() => { setPainelCabecalho(null); acao(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-bold disabled:opacity-40" style={{ color: COR.tinta, fontWeight: 700, fontSize: 14, lineHeight: "20px", padding: "12px 16px", borderBottom: `1px solid ${COR.linha}` }}><Icon size={20} className="shrink-0" color={COR.tintaSuave} /><span>{nome}</span></button>)}
               </CortinaCabecalho>
               <AvisosVencimentos aberto={painelCabecalho === "avisos"} onAlternar={() => setPainelCabecalho((atual) => atual === "avisos" ? null : "avisos")} onFechar={() => setPainelCabecalho(null)} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} pagamentosCartaoPagos={pagamentosCartaoPagos} onAbrir={(mes) => { setAtalhoDespesas({ filtro: "Pendentes", mes }); setAba("despesas"); setCartaoSelecionadoId(null); }} />
-              <button aria-label="Abrir perfil" onClick={() => setAba("perfil")} className="w-8 h-8 rounded-full overflow-hidden border-2" style={{ borderColor: COR.linha }}>
-                {usuario.photoURL ? (
-                  <img src={usuario.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <span className="flex items-center justify-center w-full h-full text-xs font-bold" style={{ background: COR.ouro, color: COR.texto }}>
-                    {(usuario.displayName || usuario.email || "?").charAt(0).toUpperCase()}
-                  </span>
-                )}
+              <button aria-label="Abrir perfil" onClick={() => setAba("perfil")} className="flex items-center justify-center shrink-0 rounded-full" style={{ width: 32, height: 32, padding: 4 }}>
+                <span className="rounded-full overflow-hidden flex items-center justify-center border" style={{ width: 24, height: 24, borderColor: COR.linha }}>
+                  {usuario.photoURL ? (
+                    <img src={usuario.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span className="flex items-center justify-center w-full h-full text-xs font-bold" style={{ background: COR.ouro, color: COR.texto }}>
+                      {(usuario.displayName || usuario.email || "?").charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </span>
               </button>
             </div>
           </div>
@@ -1147,7 +1149,7 @@ function listarAvisosVencimentos(despesas, cartoes, pessoas, pagamentos, hoje) {
     .sort((a, b) => a.vencimento.localeCompare(b.vencimento) || a.nome.localeCompare(b.nome));
 }
 
-function CortinaCabecalho({ id, label, Icon, aberto, onAlternar, onFechar, badge, setaDireita = 52, children }) {
+function CortinaCabecalho({ id, label, Icon, aberto, onAlternar, onFechar, badge, setaDireita = 46, largura = "min(320px, calc(100vw - 40px))", children }) {
   const botaoRef = useRef(null), painelRef = useRef(null);
   const [presente, setPresente] = useState(aberto);
   useEffect(() => {
@@ -1169,15 +1171,15 @@ function CortinaCabecalho({ id, label, Icon, aberto, onAlternar, onFechar, badge
     else painelRef.current.setAttribute("inert", "");
   }, [aberto, presente]);
   return <>
-    <button ref={botaoRef} type="button" aria-label={badge ? `${label}: ${badge}` : label} aria-haspopup="dialog" aria-expanded={aberto} aria-controls={id} onClick={onAlternar} className="relative p-2 rounded-full" style={{ color: COR.tintaSuave }}>
-      <Icon size={22} />{badge > 0 && <span className="absolute -top-1 -right-1 rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] text-white" style={{ background: COR.vermelho }}>{badge > 99 ? "99+" : badge}</span>}
+    <button ref={botaoRef} type="button" aria-label={badge ? `${label}: ${badge}` : label} aria-haspopup="dialog" aria-expanded={aberto} aria-controls={id} onClick={onAlternar} className="relative flex items-center justify-center shrink-0 rounded-full" style={{ color: COR.tintaSuave, width: 32, height: 32, padding: 4 }}>
+      <Icon size={24} />{badge > 0 && <span className="absolute rounded-full px-1 flex items-center justify-center text-white" style={{ background: COR.vermelho, top: -3, right: -1, minWidth: 16, height: 16, fontSize: 9 }}>{badge > 99 ? "99+" : badge}</span>}
     </button>
     <style>{`
       @keyframes cortinaAbrir { from { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-6px); } to { opacity: 1; clip-path: inset(-12px -24px -24px -24px); transform: translateY(0); } }
       @keyframes cortinaFechar { from { opacity: 1; clip-path: inset(-12px -24px -24px -24px); transform: translateY(0); } to { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-6px); } }
       @media (prefers-reduced-motion: reduce) { .cortina-cabecalho { animation-duration: 1ms !important; } }
     `}</style>
-    {presente && <section ref={painelRef} id={id} role="dialog" aria-label={label} aria-hidden={!aberto} className="absolute right-0 rounded-2xl border shadow-lg cortina-cabecalho" style={{ top: "calc(100% + 12px)", width: "min(360px, calc(100vw - 40px))", background: COR.cartao, borderColor: COR.linha, color: COR.tinta, zIndex: 60, pointerEvents: aberto ? "auto" : "none", animation: `${aberto ? "cortinaAbrir 240ms" : "cortinaFechar 180ms"} ease both` }}>
+    {presente && <section ref={painelRef} id={id} role="dialog" aria-label={label} aria-hidden={!aberto} className="absolute right-0 rounded-2xl border shadow-lg cortina-cabecalho" style={{ top: "calc(100% + 12px)", width: largura, background: COR.cartao, borderColor: COR.linha, color: COR.tinta, zIndex: 60, pointerEvents: aberto ? "auto" : "none", animation: `${aberto ? "cortinaAbrir 240ms" : "cortinaFechar 180ms"} ease both` }}>
       <span aria-hidden="true" style={{ position: "absolute", top: -6, right: setaDireita, width: 12, height: 12, background: COR.cartao, borderLeft: `1px solid ${COR.linha}`, borderTop: `1px solid ${COR.linha}`, transform: "rotate(45deg)" }} />
       <div className="relative rounded-2xl overflow-y-auto" style={{ maxHeight: "min(65dvh, 480px)", background: COR.cartao }}>{children}</div>
     </section>}
@@ -1190,15 +1192,15 @@ function AvisosVencimentos({ despesas, cartoes, pessoasAutomaticas, pagamentosCa
   useEffect(() => { const timer = setInterval(() => setHoje(dataLocal()), 60000); return () => clearInterval(timer); }, []);
   const avisos = listarAvisosVencimentos(despesas, cartoes, pessoasAutomaticas, pagamentosCartaoPagos, hoje);
   const texto = (a) => a.dias < 0 ? `Atrasada há ${-a.dias} ${a.dias === -1 ? "dia" : "dias"}` : a.dias === 0 ? "Vence hoje" : a.dias === 1 ? "Vence amanhã" : `Vence em ${Number(a.vencimento.slice(-2))} ${MESES[Number(a.vencimento.slice(5, 7)) - 1].slice(0, 3).toLowerCase()}`;
-  return <CortinaCabecalho id="avisos-vencimentos" label="Avisos de vencimento" Icon={Bell} aberto={aberto} onAlternar={onAlternar} onFechar={onFechar} badge={avisos.length}>
-    <div className="flex items-center justify-between gap-3 px-4 py-3 border-b" style={{ borderColor: COR.linha }}><h2 className="text-base font-semibold">Avisos de vencimento</h2><button type="button" aria-label="Fechar avisos" onClick={onFechar} className="p-1" style={{ color: COR.tintaSuave }}><X size={20} /></button></div>
+  return <CortinaCabecalho id="avisos-vencimentos" label="Avisos de vencimento" Icon={Bell} aberto={aberto} onAlternar={onAlternar} onFechar={onFechar} badge={avisos.length} largura="min(300px, calc(100vw - 80px))">
+    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b" style={{ borderColor: COR.linha }}><h2 className="text-sm font-bold" style={{ fontSize: 14, fontWeight: 700, lineHeight: "20px" }}>Avisos de vencimento</h2><button type="button" aria-label="Fechar avisos" onClick={onFechar} className="p-1" style={{ color: COR.tintaSuave }}><X size={18} /></button></div>
     {!avisos.length && <p className="text-sm px-4 py-6 text-center" style={{ color: COR.tintaSuave }}>Tudo em dia! Nenhuma conta para este período.</p>}
-    {avisos.map((a) => <button type="button" key={a.id} onClick={() => { onFechar(); onAbrir(chaveDoMes(a.vencimento)); }} className="w-full text-left flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: COR.linha }}>
-      <CalendarDays size={23} className="shrink-0" color={a.dias < 0 ? COR.vermelho : a.dias <= 2 ? "#F59E0B" : COR.tintaSuave} />
-      <span className="min-w-0 flex-1"><span className="block text-sm break-words">{a.nome}</span><span className="block text-xs mt-1" style={{ color: a.dias < 0 ? COR.vermelho : COR.tintaSuave }}>{texto(a)}</span></span>
-      <span className="text-sm whitespace-nowrap">{fmt(a.valor)}</span>
+    {avisos.map((a) => <button type="button" key={a.id} onClick={() => { onFechar(); onAbrir(chaveDoMes(a.vencimento)); }} className="w-full text-left flex items-center gap-2 px-3 py-3 border-b" style={{ borderColor: COR.linha, padding: "12px", lineHeight: "20px" }}>
+      <CalendarDays size={20} className="shrink-0" color={a.dias < 0 ? COR.vermelho : a.dias <= 2 ? "#F59E0B" : COR.tintaSuave} />
+      <span className="min-w-0 flex-1"><span className="block text-sm font-bold break-words" style={{ fontSize: 14, fontWeight: 700 }}>{a.nome}</span><span className="block text-xs mt-1" style={{ color: a.dias < 0 ? COR.vermelho : COR.tintaSuave }}>{texto(a)}</span></span>
+      <span className="text-sm font-bold whitespace-nowrap" style={{ fontSize: 13, fontWeight: 700 }}>{fmt(a.valor)}</span>
     </button>)}
-    <button type="button" onClick={() => { onFechar(); onAbrir(avisos.length ? chaveDoMes(avisos[0].vencimento) : chaveDoMes(hoje)); }} className="w-full flex items-center justify-between gap-2 px-4 py-4 text-sm text-left" style={{ color: COR.ouro }}>Ver despesas pendentes<ChevronRight size={20} /></button>
+    <button type="button" onClick={() => { onFechar(); onAbrir(avisos.length ? chaveDoMes(avisos[0].vencimento) : chaveDoMes(hoje)); }} className="w-full flex items-center justify-between gap-2 px-3 py-3 text-sm font-semibold text-left" style={{ color: COR.ouro, fontSize: 13, fontWeight: 600 }}>Ver despesas pendentes<ChevronRight size={18} className="shrink-0" /></button>
   </CortinaCabecalho>;
 }
 
