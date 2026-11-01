@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal, flushSync } from "react-dom";
 import {
-  Bell, PawPrint, Pizza, Laptop, ShoppingBasket, Settings2, Search, Mic, ShoppingCart, Filter, Image as IconeImagem, Car, Utensils, Cross, Wifi, Flame, Gift, Smartphone, GraduationCap, Shirt, Dumbbell, HeartPulse, Clock, CalendarDays, Plus, Pencil, Trash2, Check, X, Wallet, CreditCard, ArrowRight, FileDown,
+  Bell, PawPrint, Pizza, Laptop, ShoppingBasket, Settings2, Search, ShoppingCart, Image as IconeImagem, Car, Utensils, Cross, Wifi, Flame, Gift, Smartphone, GraduationCap, Shirt, Dumbbell, HeartPulse, Clock, CalendarDays, Plus, Pencil, Trash2, Check, X, Wallet, CreditCard, ArrowRight, FileDown,
   CheckCircle2, Circle, Download, LogOut, Mail, Lock, Eye, EyeOff, UserPlus, ShieldCheck,
   ArrowLeft, User, Phone, Calculator as IconeCalculadora, Delete, Home,
   BarChart3, MoreHorizontal, ChevronRight, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle,
@@ -1841,26 +1841,6 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
   const valorVisivel = (valor) => ocultarValores ? "R$ ••••" : fmt(valor);
   const { nome: nomeCartao, cor: corPrincipal, corClara, compras } = cartao;
 
-  // null seleciona todas as pessoas, inclusive novos nomes adicionados depois.
-  const [pessoasSelecionadas, setPessoasSelecionadas] = useState(null);
-  const [menuPessoasAberto, setMenuPessoasAberto] = useState(false);
-  const filtroPessoasRef = useRef(null);
-  const botaoFiltroRef = useRef(null);
-  useEffect(() => {
-    if (!menuPessoasAberto) return;
-    const fecharFora = (e) => {
-      if (!filtroPessoasRef.current?.contains(e.target)) setMenuPessoasAberto(false);
-    };
-    const fecharEsc = (e) => {
-      if (e.key === "Escape") { setMenuPessoasAberto(false); botaoFiltroRef.current?.focus(); }
-    };
-    document.addEventListener("pointerdown", fecharFora);
-    document.addEventListener("keydown", fecharEsc);
-    return () => {
-      document.removeEventListener("pointerdown", fecharFora);
-      document.removeEventListener("keydown", fecharEsc);
-    };
-  }, [menuPessoasAberto]);
   const [mesSelecionado, setMesSelecionado] = useState(mesAtualChave());
   const [mostrarForm, setMostrarForm] = useState(false);
   const [nova, setNova] = useState({ nome: "", compra: "", valor: "", data: "" });
@@ -1879,32 +1859,14 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
   const [erroExclusao, setErroExclusao] = useState("");
   const [buscaCompra, setBuscaCompra] = useState("");
   const [mostrarResumoPessoas, setMostrarResumoPessoas] = useState(false);
-  const [mostrarVoz, setMostrarVoz] = useState(false);
+  const [mostrarBusca, setMostrarBusca] = useState(false);
   const [ferramenta, setFerramenta] = useState(null);
 
-  const nomesUnicos = useMemo(() => {
-    const nomes = new Map();
-    compras.forEach((c) => {
-      const nome = primeiroNomeDe(c.nome);
-      if (nome) nomes.set(nome.toLocaleLowerCase("pt-BR"), nome);
-    });
-    return [...nomes.values()].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [compras]);
-
-  const selecaoValida = pessoasSelecionadas === null ? null : pessoasSelecionadas.filter((nome) => nomesUnicos.some((n) => n.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR")));
-  const todasPessoas = selecaoValida === null;
-  const pessoaFiltro = todasPessoas ? "todos" : (selecaoValida.length ? selecaoValida.join(", ") : "Nenhuma pessoa selecionada");
-  const resumoFiltro = todasPessoas ? "Todas as pessoas" : (selecaoValida.length === 1 ? selecaoValida[0] : (selecaoValida.length ? `${selecaoValida.length} pessoas` : "Selecionar pessoas"));
-  const alternarPessoa = (nome) => setPessoasSelecionadas((atuais) => {
-    const lista = atuais === null ? nomesUnicos : atuais;
-    const inclui = lista.some((n) => n.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR"));
-    return inclui ? lista.filter((n) => n.toLocaleLowerCase("pt-BR") !== nome.toLocaleLowerCase("pt-BR")) : [...lista, nome];
-  });
+  const pessoaFiltro = "todos";
   const comprasFiltradas = useMemo(() => {
-    const nomes = pessoasSelecionadas === null ? null : new Set(pessoasSelecionadas.map((nome) => nome.toLocaleLowerCase("pt-BR")));
     const termo = normalizarBusca(buscaCompra);
-    return compras.filter((c) => (!nomes || nomes.has(primeiroNomeDe(c.nome).toLocaleLowerCase("pt-BR"))) && (!termo || normalizarBusca(`${c.compra} ${c.nome}`).includes(termo)));
-  }, [compras, pessoasSelecionadas, buscaCompra]);
+    return compras.filter((c) => !termo || normalizarBusca(`${c.compra} ${c.nome}`).includes(termo));
+  }, [compras, buscaCompra]);
 
   const comprasPorMes = useMemo(() => {
     const grupos = {};
@@ -2003,7 +1965,7 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
   };
 
   const gerarRelatorioPdf = (formato = "imagem") => {
-    onGerarPdf({ nomeCartao, pessoaFiltro, mostrarPessoa: todasPessoas || selecaoValida.length !== 1, mesSelecionado, linhas: linhasMes, total: totalMes, cartao: { nome: nomeCartao, cor: corPrincipal, diaVencimento: diaVencimentoCartao(cartao) } }, formato);
+    onGerarPdf({ nomeCartao, pessoaFiltro, mostrarPessoa: true, mesSelecionado, linhas: linhasMes, total: totalMes, cartao: { nome: nomeCartao, cor: corPrincipal, diaVencimento: diaVencimentoCartao(cartao) } }, formato);
   };
 
   return (
@@ -2014,37 +1976,24 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
         {mesSelecionado === mesResumoInicial() && <h2 className="text-base font-bold mb-2" style={{ color: COR.ouro }}>Fatura Atual</h2>}
         <div className="rounded-2xl px-5 py-4" style={{ background: corPrincipal }}>
           {identificarBancoCartao(cartao) === "nubank" && <MarcaNubankFatura />}
-          <div className="flex items-center justify-between gap-3"><p className="fonte-mono text-3xl font-bold text-white">{valorVisivel(totalMes)}</p><BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} cor="#FFFFFF" /></div>
+          <div className="flex items-center justify-between gap-3"><p className="fonte-mono text-3xl font-bold text-white">{valorVisivel(totalMes)}</p><div className="flex items-center gap-1 shrink-0"><button type="button" aria-label={buscaCompra || mostrarBusca ? "Limpar e fechar busca" : "Buscar compras"} title={buscaCompra || mostrarBusca ? "Limpar e fechar busca" : "Buscar compras"} onClick={() => { if (buscaCompra || mostrarBusca) { setBuscaCompra(""); setMostrarBusca(false); } else setMostrarBusca(true); }} className="p-2 rounded-full text-white">{buscaCompra || mostrarBusca ? <X size={22} /> : <Search size={22} />}</button><BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} cor="#FFFFFF" /></div></div>
           {dataVencimentoCartao(cartao, mesSelecionado) && <p className="text-sm mt-2" style={{ color: "#FFFFFF" }}>Vencimento: {dataVencimentoCartao(cartao, mesSelecionado).slice(-2)} de {MESES[Number(mesSelecionado.slice(5, 7)) - 1]}</p>}
         </div>
       </div>
 
-      {ativo && ferramentasHabilitadas && !mostrarVoz && !mostrarResumoPessoas && !ferramenta && createPortal(<button type="button" aria-label="Abrir ferramentas do cartão" title="Ferramentas do cartão" onClick={() => setFerramenta("menu")} className="fixed z-40 rounded-full flex items-center justify-center oculta-impressao" style={{ width: 56, height: 56, right: "max(20px, calc((100vw - 672px) / 2 + 20px))", bottom: "calc(100px + env(safe-area-inset-bottom, 0px))", background: COR.ouro, color: "white", boxShadow: "0 6px 18px rgba(37,99,235,0.3)" }}><Plus size={28} /></button>, document.body)}
+      {mostrarBusca && <div className="flex items-center gap-2 rounded-2xl border px-3 bg-white oculta-impressao" style={{ borderColor: COR.linha }}><Search size={18} color={COR.tintaSuave} /><input autoFocus aria-label="Buscar compras" placeholder="Buscar compra ou pessoa" value={buscaCompra} onChange={(e) => setBuscaCompra(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") { setBuscaCompra(""); setMostrarBusca(false); } }} className="busca-compras flex-1 min-w-0 py-3 text-sm outline-none" /></div>}
+
+      {ativo && ferramentasHabilitadas && !mostrarResumoPessoas && !ferramenta && createPortal(<button type="button" aria-label="Abrir ferramentas do cartão" title="Ferramentas do cartão" onClick={() => setFerramenta("menu")} className="fixed z-40 rounded-full flex items-center justify-center oculta-impressao" style={{ width: 56, height: 56, right: "max(20px, calc((100vw - 672px) / 2 + 20px))", bottom: "calc(100px + env(safe-area-inset-bottom, 0px))", background: COR.ouro, color: "white", boxShadow: "0 6px 18px rgba(37,99,235,0.3)" }}><Plus size={28} /></button>, document.body)}
       {ferramenta === "menu" && <JanelaFerramentaCartao titulo="Ferramentas do cartão" onFechar={() => setFerramenta(null)} flutuante>
         <div className="flex flex-col gap-1">{[
           { nome: "Adicionar compra", Icon: ShoppingCart, acao: () => { setMesCompra(mesSelecionado); setMostrarForm(true); setFerramenta("adicionar"); } },
-          { nome: "Adicionar por voz", Icon: Mic, acao: () => { setFerramenta(null); setMostrarVoz(true); } },
-          { nome: "Filtrar por pessoa", Icon: Filter, detalhe: resumoFiltro, acao: () => setFerramenta("filtrar") },
           { nome: gerandoImagem ? "Gerando imagem..." : "Gerar imagem", Icon: IconeImagem, desabilitado: gerandoImagem || !linhasMes.length, acao: () => { setFerramenta(null); gerarRelatorioPdf(); } },
           { nome: "Gerar planilha (CSV)", Icon: FileDown, desabilitado: gerandoImagem || !linhasMes.length, acao: () => { setFerramenta(null); gerarRelatorioPdf("planilha"); } },
           { nome: "Resumo por pessoa", Icon: User, acao: () => { setFerramenta(null); setMostrarResumoPessoas(true); } },
-          { nome: "Buscar compra ou pessoa", Icon: Search, detalhe: buscaCompra, acao: () => setFerramenta("buscar") },
           { nome: "Calculadora", Icon: IconeCalculadora, acao: () => { setFerramenta(null); onAbrirCalculadora(); } },
         ].map(({ nome, Icon, detalhe, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={acao} className="flex items-center gap-3 w-full text-left rounded-xl px-3 py-3 text-sm disabled:opacity-40" style={{ color: COR.tinta }}><Icon size={20} color={COR.ouro} /><span className="min-w-0 flex-1">{nome}{detalhe && <span className="block text-xs truncate mt-0.5" style={{ color: COR.tintaSuave }}>{detalhe}</span>}</span><ChevronRight size={16} color={COR.tintaSuave} /></button>)}</div>
       </JanelaFerramentaCartao>}
-      {ferramenta === "filtrar" && <JanelaFerramentaCartao titulo="Filtrar por pessoa" onFechar={() => setFerramenta(null)}>
-        <div className="flex gap-2 mb-3"><button onClick={() => setPessoasSelecionadas(null)} className="rounded-xl px-3 py-2 text-sm" style={{ background: COR.ouroClaro, color: COR.ouro }}>Todas</button><button onClick={() => setPessoasSelecionadas([])} className="rounded-xl px-3 py-2 text-sm" style={{ background: COR.papelEscuro }}>Limpar seleção</button></div>
-        <div className="flex flex-col max-h-72 overflow-y-auto">{nomesUnicos.map((nome) => <label key={nome} className="flex items-center gap-3 py-3 text-sm cursor-pointer"><input type="checkbox" checked={todasPessoas || selecaoValida.some((n) => n.toLocaleLowerCase("pt-BR") === nome.toLocaleLowerCase("pt-BR"))} onChange={() => alternarPessoa(nome)} style={{ accentColor: corPrincipal, minHeight: 16, width: 16, height: 16 }} />{nome}</label>)}</div>
-        {!nomesUnicos.length && <p className="text-sm" style={{ color: COR.tintaSuave }}>Nenhuma pessoa cadastrada neste cartão.</p>}
-        <button onClick={() => setFerramenta(null)} className="w-full rounded-xl py-3 text-sm font-semibold text-white mt-3" style={{ background: COR.ouro }}>Concluir</button>
-      </JanelaFerramentaCartao>}
-      {ferramenta === "buscar" && <JanelaFerramentaCartao titulo="Buscar compra ou pessoa" onFechar={() => setFerramenta(null)}>
-      <div className="flex items-center gap-2 rounded-2xl border px-3 bg-white oculta-impressao" style={{ borderColor: COR.linha }}><Search size={18} color={COR.tintaSuave} /><input aria-label="Buscar compras" placeholder="Buscar compra ou pessoa" value={buscaCompra} onChange={(e) => setBuscaCompra(e.target.value)} className="busca-compras flex-1 min-w-0 py-3 text-sm outline-none" />{buscaCompra && <button aria-label="Limpar busca" onClick={() => setBuscaCompra("")} className="p-2"><X size={16} /></button>}</div>
-        <p className="text-xs mt-3" style={{ color: COR.tintaSuave }}>{linhasMes.length} {linhasMes.length === 1 ? "compra encontrada" : "compras encontradas"} no mês selecionado.</p>
-        <button onClick={() => setFerramenta(null)} className="w-full rounded-xl py-3 text-sm font-semibold text-white mt-4" style={{ background: COR.ouro }}>Ver resultados</button>
-      </JanelaFerramentaCartao>}
-      {mostrarVoz && <CompraPorVoz nomeUsuario={primeiroNomeUsuario} mesInicial={mesSelecionado} cartao={cartao} onFechar={() => setMostrarVoz(false)} onAdicionar={(registros, mes) => { onAtualizarCompras((atuais) => [...atuais, ...registros]); setPessoasSelecionadas(null); setBuscaCompra(""); setMesSelecionado(mes); }} onDesfazer={(ids) => onAtualizarCompras((atuais) => atuais.filter((c) => !ids.includes(c.id)))} />}
-      {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setPessoasSelecionadas([nome]); setBuscaCompra(""); setMostrarResumoPessoas(false); }} />}
+      {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setBuscaCompra(nome); setMostrarBusca(true); setMostrarResumoPessoas(false); }} />}
       {ferramenta === "adicionar" && (
         <JanelaFerramentaCartao titulo="Adicionar compra" onFechar={() => { setMostrarForm(false); setFerramenta(null); }}><div className="rounded-2xl p-4 flex flex-col gap-3 oculta-impressao" style={{ background: COR.cartao, border: `1px solid ${COR.linha}` }}>
           <Campo label="Nome de quem comprou">
@@ -2143,7 +2092,7 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
       {erroExclusao && <p role="alert" className="text-sm" style={{ color: COR.vermelho }}>{erroExclusao}</p>}
       {linhasMes.length === 0 && !mostrarForm && (
         <p className="text-sm text-center py-8 oculta-impressao" style={{ color: COR.tintaSuave }}>
-          Nenhuma compra {todasPessoas ? "" : (selecaoValida.length ? `de ${pessoaFiltro} ` : "— selecione uma ou mais pessoas — ")}em {rotuloDoMes(mesSelecionado)}.
+          Nenhuma compra {buscaCompra ? "encontrada para esta busca " : ""}em {rotuloDoMes(mesSelecionado)}.
         </p>
       )}
 
@@ -2197,7 +2146,6 @@ function CartaoTab({ cartao, ativo, ferramentasHabilitadas, onAbrirCalculadora, 
                   </>}
                   {!rascunho.parcelada && dadosParcelamento(c).parcelada && <p className="text-xs" style={{ color: COR.tintaSuave }}>Ao salvar sem parcelamento, esta compra terá apenas um lançamento. As próximas parcelas serão removidas; as anteriores serão mantidas.</p>}
                   <OpcaoDividirCompra ativa={rascunho.dividir} onAtiva={(v) => setRascunho({ ...rascunho, dividir: v })} pessoa={rascunho.dividirCom} onPessoa={(v) => setRascunho({ ...rascunho, dividirCom: v })} nome={rascunho.nome} valor={rascunho.valor} negativo={rascunho.negativo || rascunho.antecipado} cor={corPrincipal} />
-                  {c.compartilhamentoId && <p className="text-xs" style={{ color: COR.tintaSuave }}>Esta edição atualiza as duas partes da compra. Ao desmarcar a divisão, o valor total ficará para quem comprou.</p>}
                   {erroEdicao && <p role="alert" className="text-sm" style={{ color: COR.vermelho }}>{erroEdicao}</p>}
                   <div className="flex gap-2 justify-end">
                     <button aria-label="Cancelar edição" onClick={cancelarEdicao} className="p-1.5 rounded-2xl" style={{ color: COR.tintaSuave }}><X size={16} /></button>
@@ -2325,7 +2273,6 @@ function ResumoPessoas({ cartao, mes, primeiroNomeUsuario, ocultarValores, onFec
       </div>)}</div>
       {!pessoas.length && <p className="text-sm py-5" style={{ color: COR.tintaSuave }}>Nenhuma compra neste mês.</p>}
       <div className="grid grid-cols-2 gap-3 rounded-2xl border p-4 mt-4" style={{ background: COR.cartao, borderColor: COR.linha }}><div><p className="text-xs" style={{ color: COR.tintaSuave }}>A receber</p><p className="font-bold mt-1" style={{ color: "#92400E" }}>{valor(pendente)}</p></div><div><p className="text-xs" style={{ color: COR.tintaSuave }}>Recebido</p><p className="font-bold mt-1" style={{ color: COR.verde }}>{valor(recebido)}</p></div></div>
-      <p className="text-xs mt-3" style={{ color: COR.tintaSuave }}>Os totais incluem sua parte. Marcar como recebido não altera o pagamento da fatura. Se o total da pessoa mudar, o recebimento deverá ser confirmado novamente.</p>
     </div>
   </div>, document.body);
 }
@@ -2336,204 +2283,6 @@ function MarcaNubankFatura() { return <div className="text-white mb-3" aria-labe
           <path d="M43.9757 14.1248C44.0305 13.0547 43.9757 11.9596 43.9757 10.8845V0.558594H38.1645V10.0195C38.1645 12.9697 38.1844 15.585 38.1645 16.12C38.0549 18.6702 37.3571 20.3454 36.0464 21.7055C36.1411 21.7055 36.2507 21.7155 36.3454 21.7155C39.1762 21.7155 41.8326 20.0954 43.1234 17.5951C43.7065 16.49 43.9109 15.3199 43.9757 14.1198V14.1248Z" fill="currentColor" />
           <path d="M30.6536 24.0007C32.8265 24.0007 34.6805 23.1556 36.066 21.7055C31.74 21.7055 28.9291 18.7652 28.7796 14.0898C28.7497 13.0197 28.7248 10.3595 28.7248 7.2692V0.558594L22.9137 0.568595V9.63942C22.9137 12.3847 22.8937 14.7549 23.0881 16.395C23.6264 20.9554 26.4372 24.0007 30.6536 24.0007Z" fill="currentColor" />
         </svg><span className="block text-xs mt-1">Nubank</span></div>; }
-
-function numeroFaladoPt(texto) {
-  const palavras = normalizarBusca(texto).trim();
-  if (/^\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?$/.test(palavras)) return Number(palavras.replace(/\./g, "").replace(",", "."));
-  if (/^\d+(?:\.\d{1,2})?$/.test(palavras)) return Number(palavras);
-  const valores = { zero:0, um:1, uma:1, dois:2, duas:2, tres:3, quatro:4, cinco:5, seis:6, sete:7, oito:8, nove:9, dez:10, onze:11, doze:12, treze:13, catorze:14, quatorze:14, quinze:15, dezesseis:16, dezessete:17, dezoito:18, dezenove:19, vinte:20, trinta:30, quarenta:40, cinquenta:50, sessenta:60, setenta:70, oitenta:80, noventa:90, cem:100, cento:100, duzentos:200, trezentos:300, quatrocentos:400, quinhentos:500, seiscentos:600, setecentos:700, oitocentos:800, novecentos:900 };
-  let total = 0, parcial = 0;
-  for (const palavra of palavras.split(/\s+/).filter((p) => p !== "e")) {
-    if (palavra === "mil") { total += (parcial || 1) * 1000; parcial = 0; }
-    else if (Object.hasOwn(valores, palavra)) parcial += valores[palavra];
-    else return NaN;
-  }
-  return total + parcial;
-}
-
-function valorDaFala(texto) {
-  const dinheiro = normalizarBusca(texto).replace(/^r\$\s*/, "").trim();
-  const moedas = dinheiro.match(/^(.*?)\s+rea(?:l|is)(?:\s+e\s+(.*?)\s+centavos?)?$/);
-  if (moedas) {
-    const inteiro = numeroFaladoPt(moedas[1]), centavos = moedas[2] ? numeroFaladoPt(moedas[2]) : 0;
-    return Number.isInteger(inteiro) && Number.isInteger(centavos) && centavos >= 0 && centavos <= 99 ? inteiro + centavos / 100 : NaN;
-  }
-  const virgula = dinheiro.match(/^(.*?)\s+(?:virgula|ponto)\s+(.*?)$/);
-  if (virgula) {
-    const inteiro = numeroFaladoPt(virgula[1]), decimal = numeroFaladoPt(virgula[2]);
-    return Number.isInteger(inteiro) && Number.isInteger(decimal) && decimal >= 0 && decimal <= 99 ? inteiro + decimal / (/^(?:zero|0)\s/.test(virgula[2]) || decimal >= 10 ? 100 : 10) : NaN;
-  }
-  return dinheiro ? numeroFaladoPt(dinheiro) : NaN;
-}
-
-function montarCompraPorVoz({ compra, valor, mes, nome: comprador, dividirCom = "", transcricao = "" }, nomeUsuario) {
-  const nome = (comprador || nomeUsuario || "").trim();
-  if (!nome) throw new Error("Não foi possível identificar seu nome. Use Adicionar compra.");
-  if (!compra.trim()) throw new Error("Preencha a descrição da compra.");
-  if (!Number.isFinite(valor) || valor <= 0 || valor > 999999) throw new Error("Confira o valor da compra.");
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mes)) throw new Error("Escolha um mês válido.");
-  const registro = { id: uid(), nome, compra: compra.trim(), valor: Math.round(valor * 100) / 100, data: `${mes}-01`, tipoLancamento: "compra", origem: "voz", transcricaoVoz: transcricao };
-  const registros = dividirCom.trim() ? dividirRegistrosCompras([registro], nome, dividirCom.trim()) : [registro];
-  return { nome, compra: registro.compra, valor: registro.valor, mes, dividirCom: dividirCom.trim(), registros };
-}
-
-function interpretarCompraPorVoz(texto, nomeUsuario, mes = mesResumoInicial(), nomesConhecidos = []) {
-  const original = texto.trim();
-  if (/parcelad|parcelas|estorno|pagamento antecipado/i.test(normalizarBusca(original))) throw new Error("Use Adicionar compra para parcelas, estornos ou pagamentos antecipados.");
-  let fala = original.replace(/[.!?;]+\s*$/g, "").trim();
-  const meses = "janeiro fevereiro marco abril maio junho julho agosto setembro outubro novembro dezembro".split(" ");
-  const mesFalado = normalizarBusca(fala).match(/(?:\s+(?:em|para|no|na|de))?\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+(?:de\s+)?(20\d{2}))?$/);
-  if (mesFalado) {
-    const numero = meses.indexOf(mesFalado[1]) + 1;
-    // Sem ano explícito, mantém o ano da fatura sugerida pelo aplicativo.
-    mes = `${mesFalado[2] || mes.slice(0, 4)}-${String(numero).padStart(2, "0")}`;
-    fala = fala.slice(0, mesFalado.index).trim();
-  }
-  const divisao = fala.match(/\bdivid(?:ir|a|ida|indo)\s+(?:a\s+)?(?:compra\s+)?com\s+(.+)$/i);
-  let dividirCom = "";
-  if (divisao) { dividirCom = divisao[1].trim(); fala = fala.slice(0, divisao.index).trim().replace(/[.!?,;]+$/, ""); }
-  if (/\bdivid/i.test(fala) || (dividirCom && /\s+e\s+|[,;]/i.test(dividirCom))) throw new Error("Diga o nome de uma pessoa para dividir, por exemplo: dividir com Filipe.");
-  fala = fala.replace(/(?:[,;.]?\s+)?(?:hoje|ontem)\s*$/i, "").trim();
-  // Também permite o mês antes da indicação de divisão.
-  const mesAntesDivisao = normalizarBusca(fala).match(/(?:\s+(?:em|para|no|na|de))?\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+(?:de\s+)?(20\d{2}))?$/);
-  if (mesAntesDivisao) {
-    mes = `${mesAntesDivisao[2] || mes.slice(0, 4)}-${String(meses.indexOf(mesAntesDivisao[1]) + 1).padStart(2, "0")}`;
-    fala = fala.slice(0, mesAntesDivisao.index).trim().replace(/[.!?,;]+$/, "");
-  }
-  let comprador = nomeUsuario;
-  const candidatos = [...new Set([nomeUsuario, primeiroNomeDe(nomeUsuario), "Jefferson", "Filipe", ...nomesConhecidos, ...nomesConhecidos.map(primeiroNomeDe)].filter(Boolean))].sort((a, b) => b.split(/\s+/).length - a.split(/\s+/).length);
-  const tokensPessoa = fala.replace(/[.!?,;]+$/, "").trim().split(/\s+/);
-  for (const nome of candidatos) {
-    const partesNome = nome.trim().split(/\s+/);
-    if (tokensPessoa.length > partesNome.length && normalizarBusca(tokensPessoa.slice(-partesNome.length).join(" ")) === normalizarBusca(nome)) {
-      comprador = nome;
-      fala = tokensPessoa.slice(0, -partesNome.length).join(" ").replace(/(?:[,;.]|\s+(?:para|por|do|da))\s*$/i, "").trim();
-      break;
-    }
-  }
-  const partes = fala.match(/^(?:comprei|gastei|paguei|compra de)\s+(.*?)\s+(?:no|na|em|para|de)\s+(.+)$/i);
-  let compra, dinheiro;
-  if (partes) { dinheiro = partes[1]; compra = partes[2]; }
-  else {
-    fala = fala.replace(/^(?:comprei|gastei|paguei|compra de)\s+/i, "");
-    const tokens = fala.split(/\s+/);
-    // Busca o valor ao final: "recarga Vivo 35,79" ou "mercado trinta reais".
-    for (let i = 1; i < tokens.length; i++) {
-      const candidato = tokens.slice(i).join(" ");
-      if (Number.isFinite(valorDaFala(candidato))) { compra = tokens.slice(0, i).join(" "); dinheiro = candidato; break; }
-    }
-    if (!compra) {
-      // Aceita valor no início, mantendo números no nome da loja.
-      for (let i = tokens.length - 1; i >= 1; i--) {
-        const candidato = tokens.slice(0, i).join(" ");
-        if (Number.isFinite(valorDaFala(candidato))) { dinheiro = candidato; compra = tokens.slice(i).join(" ").replace(/^(?:no|na|em)\s+/i, ""); break; }
-      }
-    }
-  }
-  if (!compra || !dinheiro) throw new Error("Diga a descrição e o valor, por exemplo: recarga Vivo 35 reais e 79 centavos novembro.");
-  compra = compra.replace(/[.!?,;]+$/, "").trim();
-  if (/\bamanha\b|\bdia\s+\d/i.test(normalizarBusca(compra))) throw new Error("Confira a data usando o campo Mês da prévia.");
-  let valor = valorDaFala(dinheiro), aviso = "";
-  // Um número sem separador pode ser reais ou centavos: apenas sugere, nunca grava automaticamente.
-  if (/^\d{4,6}$/.test(dinheiro.trim())) {
-    valor /= 100;
-    aviso = `A fala trouxe “${dinheiro.trim()}” sem separador. Sugeri ${fmt(valor)}; confira e corrija o valor antes de confirmar.`;
-  }
-  const resultado = montarCompraPorVoz({ nome: comprador, compra, valor, mes, dividirCom, transcricao: original }, nomeUsuario);
-  return { ...resultado, aviso };
-}
-
-function CompraPorVoz({ nomeUsuario, cartao, mesInicial, onFechar, onAdicionar, onDesfazer }) {
-  const [ouvindo, setOuvindo] = useState(false), [erro, setErro] = useState(""), [transcricao, setTranscricao] = useState(""), [resultado, setResultado] = useState(null), [desfeita, setDesfeita] = useState(false);
-  const [previa, setPrevia] = useState(null), [confirmando, setConfirmando] = useState(false);
-  const adicionadaRef = useRef(false);
-  const reconhecimentoRef = useRef(null), canceladoRef = useRef(false), processadoRef = useRef(false), callbacksRef = useRef({ onAdicionar });
-  callbacksRef.current = { onAdicionar };
-  const suportado = typeof window !== "undefined" && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-  const cancelarAudio = () => { canceladoRef.current = true; reconhecimentoRef.current?.abort(); setOuvindo(false); };
-  useEffect(() => {
-    const fechar = (e) => { if (e.key === "Escape") { cancelarAudio(); onFechar(); } };
-    document.addEventListener("keydown", fechar);
-    return () => { canceladoRef.current = true; reconhecimentoRef.current?.abort(); document.removeEventListener("keydown", fechar); };
-  }, []);
-  const fechar = () => { cancelarAudio(); onFechar(); };
-  const iniciar = () => {
-    if (!suportado || ouvindo || resultado) return;
-    setPrevia(null);
-    canceladoRef.current = false; processadoRef.current = false; setErro(""); setTranscricao("");
-    const Reconhecimento = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const reconhecimento = new Reconhecimento(); reconhecimentoRef.current = reconhecimento;
-    reconhecimento.lang = "pt-BR"; reconhecimento.continuous = false; reconhecimento.interimResults = false; reconhecimento.maxAlternatives = 1;
-    reconhecimento.onstart = () => { if (!canceladoRef.current) setOuvindo(true); };
-    reconhecimento.onresult = (evento) => {
-      if (canceladoRef.current || processadoRef.current) return;
-      processadoRef.current = true;
-      const texto = Array.from(evento.results).filter((r) => r.isFinal).map((r) => r[0].transcript).join(" ").trim();
-      setTranscricao(texto);
-      try {
-        const interpretado = interpretarCompraPorVoz(texto, nomeUsuario, mesInicial || mesResumoInicial(), (cartao.compras || []).map((c) => c.nome).filter(Boolean));
-        setPrevia({ nome: interpretado.nome, compra: interpretado.compra, valor: interpretado.valor.toFixed(2).replace(".", ","), mes: interpretado.mes, dividirCom: interpretado.dividirCom, aviso: interpretado.aviso });
-      } catch (e) { setErro(e.message); }
-      setOuvindo(false);
-    };
-    reconhecimento.onerror = (evento) => {
-      if (canceladoRef.current) return;
-      const mensagens = { "not-allowed": "Permita o microfone nas configurações do navegador para usar a voz.", "service-not-allowed": "O reconhecimento de voz não está disponível neste navegador. Tente no Chrome.", "no-speech": "Não ouvi sua fala. Toque no microfone e tente novamente.", "audio-capture": "Não foi possível acessar o microfone.", network: "Confira sua conexão com a internet e tente novamente." };
-      setErro(mensagens[evento.error] || "Não foi possível reconhecer a fala. Tente novamente."); setOuvindo(false);
-    };
-    reconhecimento.onend = () => { if (!canceladoRef.current) setOuvindo(false); };
-    try { setOuvindo(true); reconhecimento.start(); } catch { setOuvindo(false); setErro("Não foi possível iniciar o microfone. Tente novamente."); }
-  };
-  const confirmar = () => {
-    if (!previa || adicionadaRef.current) return;
-    setErro("");
-    try {
-      const valor = valorDaFala(previa.valor);
-      const confirmado = montarCompraPorVoz({ ...previa, valor, transcricao }, nomeUsuario);
-      adicionadaRef.current = true;
-      setConfirmando(true);
-      callbacksRef.current.onAdicionar(confirmado.registros, confirmado.mes);
-      setResultado(confirmado);
-      setPrevia(null);
-    } catch (e) { adicionadaRef.current = false; setErro(e.message); }
-    finally { setConfirmando(false); }
-  };
-  return createPortal(<div role="dialog" aria-modal="true" aria-label="Compra por voz" className="fixed inset-0 z-[70] flex items-center justify-center p-4 oculta-impressao" style={{ background: "rgba(15,23,42,0.4)" }} onClick={fechar}>
-    <div className="w-full max-w-md rounded-3xl p-5 overflow-y-auto" style={{ background: COR.cartao, maxHeight: "85dvh" }} onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Compra por voz</h2><button type="button" aria-label="Fechar compra por voz" onClick={fechar} className="p-2"><X size={22} /></button></div>
-      <style>{`
-        @keyframes meuCaixaOndaMicrofone { 0% { transform: scale(1); opacity: .48; } 100% { transform: scale(1.65); opacity: 0; } }
-        @keyframes meuCaixaPulsoMicrofone { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
-        .microfone-voz-onda { animation: meuCaixaOndaMicrofone 1.8s ease-out infinite; }
-        .microfone-voz-ativo { animation: meuCaixaPulsoMicrofone 1.2s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .microfone-voz-onda, .microfone-voz-ativo { animation: none; } .microfone-voz-onda { opacity: .2; } }
-      `}</style>
-      <div className="flex justify-center my-5" style={{ padding: "16px 0" }}>
-        <div className="relative" style={{ width: 76, height: 76 }}>
-          {ouvindo && [0, .6, 1.2].map((atraso) => <span key={atraso} aria-hidden="true" className="absolute inset-0 rounded-full pointer-events-none microfone-voz-onda" style={{ background: "#2563EB", animationDelay: `${atraso}s` }} />)}
-          <button type="button" aria-pressed={ouvindo} aria-label={ouvindo ? "Cancelar gravação" : "Iniciar gravação"} disabled={!suportado || !!resultado} onClick={ouvindo ? cancelarAudio : iniciar} className={`relative rounded-full flex items-center justify-center disabled:opacity-50 ${ouvindo ? "microfone-voz-ativo" : ""}`} style={{ width: 76, height: 76, background: COR.ouro, color: "white", boxShadow: "0 0 0 10px #DBEAFE" }}><Mic size={32} /></button>
-        </div>
-      </div>
-      <p role="status" aria-live="polite" className="text-sm text-center mb-3" style={{ color: resultado && !desfeita ? COR.verde : COR.tintaSuave }}>{desfeita ? "Compra desfeita." : resultado ? "Compra adicionada ao mês escolhido." : previa ? "Confira os dados antes de adicionar." : ouvindo ? "Ouvindo... fale a compra e aguarde." : "Toque no microfone e diga: 30 reais Americanas Jefferson."}</p>
-      {!suportado && <p className="text-sm mb-3" style={{ color: COR.vermelho }}>Seu navegador não oferece reconhecimento de voz. Tente abrir o app no Chrome ou use Adicionar compra.</p>}
-      {transcricao && <p className="text-sm rounded-xl p-3 mt-3" style={{ background: COR.papel }}>“{transcricao}”</p>}
-      {erro && <p role="alert" className="text-sm mt-3" style={{ color: COR.vermelho }}>{erro} Nenhuma compra foi adicionada.</p>}
-      {previa && !resultado && <div className="mt-4 flex flex-col gap-3">
-        {previa.aviso && <p role="status" className="text-sm rounded-xl p-3" style={{ background: COR.ouroClaro, color: COR.tinta }}>{previa.aviso}</p>}
-        <label className="text-sm">Quem comprou<input value={previa.nome} onChange={(e) => setPrevia((p) => ({ ...p, nome: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
-        <label className="text-sm">Descrição<input value={previa.compra} onChange={(e) => setPrevia((p) => ({ ...p, compra: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
-        <label className="text-sm">Valor (R$)<input inputMode="decimal" value={previa.valor} onChange={(e) => setPrevia((p) => ({ ...p, valor: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
-        <label className="text-sm">Mês<input type="month" value={previa.mes} onChange={(e) => setPrevia((p) => ({ ...p, mes: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
-        <label className="text-sm">Dividir com (opcional)<input value={previa.dividirCom} placeholder="Nome de uma pessoa" onChange={(e) => setPrevia((p) => ({ ...p, dividirCom: e.target.value }))} className="block w-full mt-1 rounded-xl border p-3" style={{ borderColor: COR.linha }} /></label>
-        <p className="text-xs" style={{ color: COR.tintaSuave }}>Se informar outra pessoa, o valor será dividido em partes iguais.</p>
-        <button type="button" disabled={confirmando} onClick={confirmar} className="rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-50" style={{ background: COR.ouro }}>Confirmar e adicionar</button>
-      </div>}
-      {resultado && <div className="mt-4"><p className="text-sm font-semibold">{resultado.compra} · {fmt(resultado.valor)}</p><p className="text-xs mt-1 mb-2" style={{ color: COR.tintaSuave }}>Fatura: {rotuloDoMes(resultado.mes)}</p>{resultado.registros.map((c) => <div key={c.id} className="flex justify-between rounded-xl border px-3 py-2 mt-2 text-sm" style={{ borderColor: COR.linha }}><span>{c.nome}</span><span>{fmt(c.valor)}</span></div>)}{resultado.dividirCom && <p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>Divisão em partes iguais. Um centavo de diferença, quando necessário, fica na sua parte.</p>}</div>}
-      <div className="flex justify-end gap-3 mt-5">{resultado && !desfeita && <button type="button" onClick={() => { onDesfazer(resultado.registros.map((c) => c.id)); setDesfeita(true); }} className="rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: COR.ouroClaro, color: COR.ouro }}>Desfazer</button>}<button type="button" onClick={fechar} className="rounded-xl px-4 py-3 text-sm font-semibold text-white" style={{ background: COR.ouro }}>{resultado ? "Concluir" : "Cancelar"}</button></div>
-      {!resultado && <p className="text-xs mt-3" style={{ color: COR.tintaSuave }}>O navegador pode usar um serviço online para reconhecer sua voz.</p>}
-    </div>
-  </div>, document.body);
-}
 
 function JanelaFerramentaCartao({ titulo, onFechar, flutuante = false, children }) {
   useEffect(() => {
