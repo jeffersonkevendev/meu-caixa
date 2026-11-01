@@ -740,7 +740,7 @@ function MeuCaixaApp({ usuario }) {
                     if (aba.startsWith("cartao-")) ferramentasCartoesRef.current[aba]?.exportar("planilha");
                     else { setAba("despesas"); ferramentasDespesasRef.current?.exportar("planilha"); }
                   } },
-                  ...(aba.startsWith("cartao-") ? [{ nome: "Resumo por pessoa", Icon: User, acao: () => ferramentasCartoesRef.current[aba]?.resumo() }] : []),
+                  ...(aba.startsWith("cartao-") ? [{ nome: "Conferir fatura (CSV)", Icon: FileDown, acao: () => ferramentasCartoesRef.current[aba]?.conferir() }, { nome: "Resumo por pessoa", Icon: User, acao: () => ferramentasCartoesRef.current[aba]?.resumo() }] : []),
                   { nome: "Calculadora", Icon: IconeCalculadora, acao: () => setMostrarCalculadora(true) },
                 ].map(({ nome, Icon, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={() => { setPainelCabecalho(null); acao(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-bold disabled:opacity-40" style={{ color: COR.tinta, fontWeight: 700, fontSize: 14, lineHeight: "20px", padding: "12px 16px", borderBottom: `1px solid ${COR.linha}` }}><Icon size={20} className="shrink-0" color={COR.tintaSuave} /><span>{nome}</span></button>)}
               </CortinaCabecalho>
@@ -835,7 +835,6 @@ function MeuCaixaApp({ usuario }) {
         <div className="max-w-2xl mx-auto flex justify-around py-2">
           {[{ label: "Início", Icon: Home, ativo: aba === "inicio" || aba === "entradas", acao: () => setAba("inicio") },
             { label: "Despesas", Icon: Wallet, ativo: aba === "despesas", acao: () => setAba("despesas") },
-            { label: "Perfil", Icon: User, ativo: aba === "perfil", acao: () => setAba("perfil") },
             { label: "Cartões", Icon: CreditCard, ativo: aba.startsWith("cartao-"), acao: () => {
               const destino = cartoes.length === 1 ? cartoes[0] : cartoes.find((c) => String(c.id) === String(cartaoSelecionadoId));
               setCartaoOpcoesId(null); setMostrarAddCartao(false); setNomeNovoCartao("");
@@ -848,7 +847,7 @@ function MeuCaixaApp({ usuario }) {
             } },
             { label: "Gráficos", Icon: BarChart3, ativo: aba === "graficos", acao: () => setAba("graficos") }
           ].map(({ label, Icon, ativo, acao }) => (
-            <button key={label} aria-current={ativo ? "page" : undefined} onClick={acao} className="flex-1 min-w-0 flex flex-col items-center gap-1 px-1 py-2 rounded-xl text-[10px] sm:text-xs font-semibold" style={{ color: ativo ? COR.ouro : COR.tintaSuave }}>
+            <button key={label} aria-current={ativo ? "page" : undefined} onClick={acao} type="button" className="flex-1 min-w-0 flex flex-col items-center justify-center gap-1 px-1 py-2 text-[11px] sm:text-xs font-semibold" style={{ color: ativo ? "#2563EB" : COR.tintaSuave, background: "transparent", minHeight: 48 }}>
               <Icon size={21} /><span>{label}</span>
             </button>
           ))}
@@ -1307,13 +1306,6 @@ function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasA
         </div>
       </div>
 
-      <div>
-      <p className="text-sm font-semibold mb-2" style={{ color: COR.texto }}>Atalhos</p>
-      <div className="grid grid-cols-2 gap-3">
-      <button onClick={() => onIrPara("despesas")} className="flex items-center justify-center gap-2 rounded-2xl p-4 text-sm font-semibold" style={{ background: COR.cartao, border: `1px solid ${COR.linha}`, color: COR.ouro }}><Plus size={18} />Despesas</button>
-      <button onClick={() => onIrPara("graficos")} className="flex items-center justify-center gap-2 rounded-2xl p-4 text-sm font-semibold" style={{ background: COR.ouroClaro, color: COR.ouro }}><BarChart3 size={18} />Gráficos</button>
-      </div>
-      </div>
     </div>
   );
 }
@@ -1899,6 +1891,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
   const [buscaCompra, setBuscaCompra] = useState("");
   const [mostrarResumoPessoas, setMostrarResumoPessoas] = useState(false);
   const [ferramenta, setFerramenta] = useState(null);
+  const [mostrarConferencia, setMostrarConferencia] = useState(false);
 
   const pessoaFiltro = "todos";
   const comprasFiltradas = useMemo(() => {
@@ -2012,6 +2005,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
       adicionar: () => { setMesCompra(mesSelecionado); setMostrarForm(true); setFerramenta("adicionar"); },
       exportar: (formato) => gerarRelatorioPdf(formato),
       resumo: () => setMostrarResumoPessoas(true),
+      conferir: () => setMostrarConferencia(true),
     };
     ferramentasRef.current[chave] = acoes;
     return () => { if (ferramentasRef.current[chave] === acoes) delete ferramentasRef.current[chave]; };
@@ -2044,6 +2038,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
         {buscaCompra && <button type="button" aria-label="Limpar busca" title="Limpar busca" onClick={() => setBuscaCompra("")} className="p-2 rounded-full shrink-0" style={{ color: COR.tintaSuave }}><X size={18} /></button>}
       </div>
 
+      {mostrarConferencia && <ConferenciaFatura compras={compras} mes={mesSelecionado} onFechar={() => setMostrarConferencia(false)} />}
       {mostrarResumoPessoas && <ResumoPessoas cartao={cartao} mes={mesSelecionado} primeiroNomeUsuario={primeiroNomeUsuario} ocultarValores={ocultarValores} onFechar={() => setMostrarResumoPessoas(false)} onAtualizarRecebimentos={onAtualizarRecebimentos} onVerCompras={(nome) => { setBuscaCompra(nome); setMostrarResumoPessoas(false); }} />}
       {ferramenta === "adicionar" && (
         <JanelaFerramentaCartao titulo="Adicionar compra" onFechar={() => { setMostrarForm(false); setFerramenta(null); }}><div className="rounded-2xl p-4 flex flex-col gap-3 oculta-impressao" style={{ background: COR.cartao, border: `1px solid ${COR.linha}` }}>
@@ -2334,6 +2329,78 @@ function MarcaNubankFatura() { return <div className="text-white mb-3" aria-labe
           <path d="M43.9757 14.1248C44.0305 13.0547 43.9757 11.9596 43.9757 10.8845V0.558594H38.1645V10.0195C38.1645 12.9697 38.1844 15.585 38.1645 16.12C38.0549 18.6702 37.3571 20.3454 36.0464 21.7055C36.1411 21.7055 36.2507 21.7155 36.3454 21.7155C39.1762 21.7155 41.8326 20.0954 43.1234 17.5951C43.7065 16.49 43.9109 15.3199 43.9757 14.1198V14.1248Z" fill="currentColor" />
           <path d="M30.6536 24.0007C32.8265 24.0007 34.6805 23.1556 36.066 21.7055C31.74 21.7055 28.9291 18.7652 28.7796 14.0898C28.7497 13.0197 28.7248 10.3595 28.7248 7.2692V0.558594L22.9137 0.568595V9.63942C22.9137 12.3847 22.8937 14.7549 23.0881 16.395C23.6264 20.9554 26.4372 24.0007 30.6536 24.0007Z" fill="currentColor" />
         </svg><span className="block text-xs mt-1">Nubank</span></div>; }
+
+// Conferência local: valores sempre comparados em centavos, sem modificar registros.
+function lerCsvFatura(texto) {
+  const fonte = texto.replace(/^\uFEFF/, "");
+  const primeira = fonte.split(/\r?\n/)[0];
+  const contar = (sep) => { let n = 0, aspas = false; for (const c of primeira) { if (c === '"') aspas = !aspas; if (c === sep && !aspas) n++; } return n; };
+  const sep = contar(";") > contar(",") ? ";" : ",";
+  const tabela = []; let linha = [], campo = "", aspas = false;
+  for (let i = 0; i < fonte.length; i++) {
+    const c = fonte[i];
+    if (c === '"') { if (aspas && fonte[i + 1] === '"') { campo += '"'; i++; } else aspas = !aspas; }
+    else if (!aspas && (c === sep || c === '\n' || c === '\r')) {
+      linha.push(campo); campo = "";
+      if (c !== sep) { if (linha.some((v) => v.trim())) tabela.push(linha); linha = []; if (c === '\r' && fonte[i + 1] === '\n') i++; }
+    } else campo += c;
+  }
+  if (aspas) throw new Error("CSV inválido: aspas não fechadas.");
+  linha.push(campo); if (linha.some((v) => v.trim())) tabela.push(linha);
+  const cab = (tabela.shift() || []).map(normalizarBusca);
+  const indice = (nomes) => cab.findIndex((v) => nomes.includes(v));
+  const desc = indice(["title", "descricao", "descrição", "compra", "estabelecimento"]), valor = indice(["amount", "valor"]);
+  if (desc < 0 || valor < 0) throw new Error("Use um CSV com colunas title e amount (Nubank), ou descrição e valor.");
+  if (!tabela.length) throw new Error("O arquivo não contém lançamentos.");
+  return tabela.map((r, i) => {
+    let numero = (r[valor] || "").replace(/R\$|\s/g, "");
+    if (numero.includes(",")) numero = numero.replace(/\./g, "").replace(",", ".");
+    if (!/^-?\d+(\.\d{1,2})?$/.test(numero) || !r[desc]?.trim()) throw new Error(`Confira o valor e a descrição na linha ${i + 2}.`);
+    return { compra: r[desc].trim(), valor: Number(numero) };
+  });
+}
+function compararFatura(banco, app) {
+  const cent = (v) => Math.round(Number(v) * 100);
+  const pendentes = app.map((c) => ({ ...c }));
+  const faltantes = [], divergentes = [], conferir = []; let iguais = 0;
+  const chave = (c) => normalizarBusca(c.compra).replace(/[^a-z0-9]/g, "");
+  const restantes = [];
+  for (const b of banco) {
+    const i = pendentes.findIndex((a) => chave(a) === chave(b) && cent(a.valor) === cent(b.valor));
+    if (i >= 0) { pendentes.splice(i, 1); iguais++; } else restantes.push(b);
+  }
+  for (const b of restantes) {
+    const candidatos = pendentes.map((a, i) => ({ a, i })).filter(({ a }) => chave(a) === chave(b));
+    if (candidatos.length === 1) { const { a, i } = candidatos[0]; divergentes.push({ banco: b, app: a }); pendentes.splice(i, 1); }
+    else if (pendentes.some((a) => cent(a.valor) === cent(b.valor))) conferir.push(b);
+    else faltantes.push(b);
+  }
+  return { iguais, faltantes, divergentes, conferir, extras: pendentes, totalBanco: banco.reduce((s, c) => s + cent(c.valor), 0) / 100, totalApp: app.reduce((s, c) => s + cent(c.valor), 0) / 100 };
+}
+function ConferenciaFatura({ compras, mes, onFechar }) {
+  const [dados, setDados] = useState(null), [erro, setErro] = useState(""), [lendo, setLendo] = useState(false);
+  const linhas = agruparComprasParaExibicao(compras.filter((c) => chaveDoMes(c.data) === mes));
+  const resultado = dados ? compararFatura(dados, linhas) : null;
+  const importar = async (e) => {
+    const arquivo = e.target.files?.[0]; if (!arquivo) return;
+    setDados(null); setErro(""); setLendo(true);
+    try { if (arquivo.size > 5 * 1024 * 1024) throw new Error("Escolha um CSV de até 5 MB."); setDados(lerCsvFatura(await arquivo.text())); }
+    catch (e) { setErro(e.message); } finally { setLendo(false); }
+  };
+  const lista = (titulo, itens) => itens.length > 0 && <div className="mt-4"><h3 className="font-semibold text-sm">{titulo} ({itens.length})</h3>{itens.map((c, i) => <div key={i} className="border-b py-2 text-sm" style={{ borderColor: COR.linha }}><p>{c.compra}</p><p>{fmt(c.valor)}</p></div>)}</div>;
+  return <JanelaFerramentaCartao titulo="Conferir fatura" onFechar={onFechar}>
+    <p className="text-sm mb-3">{rotuloDoMes(mes)} · Selecione o CSV completo desta fatura, exportado pelo banco. A comparação usa todas as pessoas, sem o filtro da busca.</p>
+    <input type="file" accept=".csv,text/csv" aria-label="Importar CSV da fatura" onChange={importar} className="block w-full text-sm" />
+    <p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>O arquivo é lido neste aparelho. Nenhuma compra é alterada. Pagamentos, créditos e nomes diferentes precisam ser conferidos por você.</p>
+    {lendo && <p role="status">Lendo arquivo…</p>}{erro && <p role="alert" className="text-sm mt-3" style={{ color: COR.vermelho }}>{erro}</p>}
+    {resultado && <div className="mt-4"><div className="rounded-xl p-3 text-sm" style={{ background: COR.ouroClaro }}><p>Total do CSV: {fmt(resultado.totalBanco)}</p><p>Total no app: {fmt(resultado.totalApp)}</p><p className="font-semibold">Diferença (CSV − app): {fmt((Math.round(resultado.totalBanco * 100) - Math.round(resultado.totalApp * 100)) / 100)}</p><p>{resultado.iguais} lançamentos correspondentes</p></div>
+      {lista("Sem correspondência no app", resultado.faltantes)}
+      {resultado.divergentes.length > 0 && <div className="mt-4"><h3 className="font-semibold text-sm">Valores diferentes</h3>{resultado.divergentes.map((c, i) => <div key={i} className="text-sm py-2"><p>{c.banco.compra}</p><p>CSV: {fmt(c.banco.valor)} · App: {fmt(c.app.valor)}</p></div>)}</div>}
+      {lista("Mesmo valor, descrição diferente: revisar", resultado.conferir)}{lista("Sem correspondência no CSV: revisar possíveis duplicidades", resultado.extras)}
+      <p className="text-xs mt-4" style={{ color: COR.tintaSuave }}>Correspondências usam descrição e valor, uma a uma. A data da compra não define o mês da fatura; confirme que escolheu o arquivo e o mês corretos. Totais iguais não garantem que todos os lançamentos estejam corretos.</p>
+    </div>}
+  </JanelaFerramentaCartao>;
+}
 
 function JanelaFerramentaCartao({ titulo, onFechar, flutuante = false, children }) {
   useEffect(() => {
