@@ -2307,15 +2307,29 @@ function ResumoPessoas({ cartao, mes, primeiroNomeUsuario, ocultarValores, onFec
   const valor = (v) => ocultarValores ? "R$ ••••" : fmt(v);
   return createPortal(<div role="dialog" aria-modal="true" aria-label="Resumo por pessoa" className="fixed inset-0 z-[70] flex items-center justify-center p-4 oculta-impressao" style={{ background: "rgba(15,23,42,0.4)" }} onClick={onFechar}>
     <div className="rounded-2xl p-4 overflow-y-auto" style={{ background: COR.papel, width: "min(380px, calc(100vw - 40px))", maxHeight: "70dvh", overscrollBehavior: "contain" }} onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center justify-between gap-3"><h2 className="text-base font-bold">Resumo por pessoa</h2><button type="button" autoFocus aria-label="Fechar resumo" onClick={onFechar} className="p-2 rounded-xl"><X size={22} /></button></div>
+      <div className="flex items-center justify-between gap-2"><h2 className="text-base font-bold">Resumo por pessoa</h2><button type="button" autoFocus aria-label="Fechar resumo" onClick={onFechar} className="p-2 rounded-full" style={{ background: "#EEF1F5", color: COR.tintaSuave }}><X size={18} /></button></div>
       <p className="text-xs mt-1 mb-3" style={{ color: COR.tintaSuave }}>{cartao.nome} · {rotuloDoMes(mes)}</p>
-      <div className="rounded-xl border p-3 mb-3" style={{ background: COR.cartao, borderColor: COR.linha }}><p className="text-sm" style={{ color: COR.tintaSuave }}>Total da fatura</p><p className="text-lg font-bold mt-1">{valor(total)}</p></div>
-      <div className="flex flex-col gap-2">{pessoas.map((p) => <div key={p.id} className="rounded-xl border p-3" style={{ background: COR.cartao, borderColor: COR.linha }}>
-        <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-bold">{p.nome}</h3><p className="font-bold mt-1">{valor(p.total)}</p><p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{p.quantidade} {p.quantidade === 1 ? "lançamento" : "lançamentos"}</p></div><div className="flex flex-col items-end shrink-0"><span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: p.total <= 0 ? COR.papelEscuro : p.recebido ? COR.verdeClaro : "#FEF0D6", color: p.total <= 0 ? COR.tintaSuave : p.recebido ? COR.verde : "#92400E" }}>{p.total <= 0 ? "Sem valor a receber" : p.recebido ? "Recebido" : "Pendente"}</span></div></div>
-        <div className="flex items-center justify-between gap-2 mt-2">{p.total > 0 && <button type="button" onClick={() => onAtualizarRecebimentos(p.chave, { recebido: !p.recebido, totalCentavos: p.totalCentavos, atualizadoEm: new Date().toISOString() })} className="inline-flex items-center justify-center whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: COR.ouroClaro, color: COR.ouro, minHeight: 44 }}>{p.recebido ? "Desfazer recebimento" : "Marcar recebido"}</button>}<button type="button" onClick={() => onVerCompras(p.nome)} className="ml-auto text-xs font-semibold whitespace-nowrap rounded-xl py-2" style={{ color: COR.ouro, minHeight: 44 }}>Ver compras</button></div>
-      </div>)}</div>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        {[{ titulo: "A receber", total: pendente, Icon: Wallet, fundo: "#FFF7E8", cor: "#92400E" }, { titulo: "Recebido", total: recebido, Icon: CheckCircle2, fundo: "#EAF9F2", cor: COR.verde }].map(({ titulo, total, Icon, fundo, cor }) => <div key={titulo} className="rounded-xl p-3" style={{ background: fundo }}><div className="flex items-center gap-1.5 mb-1" style={{ color: cor }}><Icon size={15} /><span className="text-xs">{titulo}</span></div><p className="font-bold whitespace-nowrap" style={{ color: cor, fontSize: "clamp(12px, 3.6vw, 16px)" }}>{valor(total)}</p></div>)}
+      </div>
+      <div className="flex flex-col gap-3">{pessoas.map((p, i) => {
+        const cores = [{ fundo: "#EDE2FF", cor: "#6923A6" }, { fundo: "#FFE1EE", cor: "#AA1453" }, { fundo: "#DBEAFE", cor: "#2563EB" }];
+        const avatar = cores[i % cores.length];
+        const Status = p.recebido ? CheckCircle2 : Clock;
+        return <div key={p.id} className="rounded-2xl border p-3" style={{ background: COR.cartao, borderColor: COR.linha, boxShadow: "0 2px 8px rgba(15,23,42,0.025)" }}>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full flex items-center justify-center shrink-0 font-bold" style={{ width: 38, height: 38, background: avatar.fundo, color: avatar.cor, fontSize: 21 }}>{p.nome.trim().charAt(0).toLocaleUpperCase("pt-BR")}</span>
+            <div className="min-w-0 flex-1"><h3 className="text-sm font-bold break-words">{p.nome}</h3><span className="inline-flex items-center gap-1 rounded-full px-2 py-1 mt-1" style={{ fontSize: 10, background: p.total <= 0 ? COR.papelEscuro : p.recebido ? COR.verdeClaro : "#FEF0D6", color: p.total <= 0 ? COR.tintaSuave : p.recebido ? COR.verde : "#92400E" }}><Status size={12} />{p.total <= 0 ? "Sem valor a receber" : p.recebido ? "Recebido" : "Pendente"}</span></div>
+            <div className="text-right shrink-0"><p className="text-sm font-bold whitespace-nowrap">{valor(p.total)}</p><p className="mt-1" style={{ color: COR.tintaSuave, fontSize: 11 }}>{p.quantidade} {p.quantidade === 1 ? "compra" : "compras"}</p></div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-1 mt-3 pt-2 border-t" style={{ borderColor: COR.linha }}>
+            <button type="button" onClick={() => onVerCompras(p.nome)} className="inline-flex items-center gap-1 text-xs font-semibold py-2" style={{ color: COR.ouro, minHeight: 40 }}><FileDown size={15} />Ver compras</button>
+            {p.total > 0 && <button type="button" onClick={() => onAtualizarRecebimentos(p.chave, { recebido: !p.recebido, totalCentavos: p.totalCentavos, atualizadoEm: new Date().toISOString() })} className="inline-flex items-center justify-center gap-1 rounded-xl px-2 py-2 font-semibold" style={{ background: p.recebido ? "#EEF2F7" : COR.ouroClaro, color: COR.ouro, fontSize: 11, minHeight: 40 }}><CheckCircle2 size={14} />{p.recebido ? "Desfazer recebimento" : "Marcar recebido"}</button>}
+          </div>
+        </div>;
+      })}</div>
       {!pessoas.length && <p className="text-sm py-5" style={{ color: COR.tintaSuave }}>Nenhuma compra neste mês.</p>}
-      <div className="grid grid-cols-2 gap-3 rounded-xl border p-3 mt-4" style={{ background: COR.cartao, borderColor: COR.linha }}><div><p className="text-xs" style={{ color: COR.tintaSuave }}>A receber</p><p className="font-bold mt-1" style={{ color: "#92400E" }}>{valor(pendente)}</p></div><div><p className="text-xs" style={{ color: COR.tintaSuave }}>Recebido</p><p className="font-bold mt-1" style={{ color: COR.verde }}>{valor(recebido)}</p></div></div>
+      <p className="text-xs mt-3 pt-3 border-t flex items-center gap-2" style={{ color: COR.tintaSuave, borderColor: COR.linha }}><User size={15} />{pessoas.length} {pessoas.length === 1 ? "pessoa neste mês" : "pessoas neste mês"}</p>
     </div>
   </div>, document.body);
 }
