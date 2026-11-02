@@ -3,7 +3,7 @@ import { createPortal, flushSync } from "react-dom";
 import {
   Receipt, LayoutGrid, Bell, PawPrint, Pizza, Laptop, ShoppingBasket, Settings2, Search, ShoppingCart, Image as IconeImagem, Car, Utensils, Cross, Wifi, Flame, Gift, Smartphone, GraduationCap, Shirt, Dumbbell, HeartPulse, Clock, CalendarDays, Plus, Pencil, Trash2, Check, X, Wallet, CreditCard, ArrowRight, FileDown,
   CheckCircle2, Circle, Download, LogOut, Mail, Lock, Eye, EyeOff, UserPlus, ShieldCheck,
-  ArrowLeft, User, Phone, Calculator as IconeCalculadora, Delete, Home,
+  ArrowLeft, User, Users, Phone, Calculator as IconeCalculadora, Delete, Home,
   BarChart3, MoreHorizontal, ChevronRight, TrendingUp, TrendingDown, ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -736,8 +736,8 @@ function MeuCaixaApp({ usuario, compartilhamento }) {
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: COR.ouro }}>
-                <Wallet size={18} color="white" strokeWidth={2.5} />
+              <div className="w-9 h-9 flex items-center justify-center" style={{ background: aba === "perfil" ? "transparent" : COR.ouro, borderRadius: aba === "perfil" ? 0 : "50%" }}>
+                <Wallet size={aba === "perfil" ? 32 : 18} color={aba === "perfil" ? COR.ouro : "white"} fill={aba === "perfil" ? "#DBEAFE" : "none"} strokeWidth={2.5} />
               </div>
               <h1 className="fonte-display text-xl min-[360px]:text-2xl whitespace-nowrap" style={{ color: COR.tinta }}>Meu Caixa</h1>
             </div>
@@ -762,7 +762,7 @@ function MeuCaixaApp({ usuario, compartilhamento }) {
               </CortinaCabecalho>
               <AvisosVencimentos aberto={painelCabecalho === "avisos"} onAlternar={() => setPainelCabecalho((atual) => atual === "avisos" ? null : "avisos")} onFechar={() => setPainelCabecalho(null)} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} pagamentosCartaoPagos={pagamentosCartaoPagos} onAbrir={(mes) => { setAtalhoDespesas({ filtro: "Pendentes", mes }); setAba("despesas"); setCartaoSelecionadoId(null); }} />
               <button aria-label="Abrir perfil" onClick={() => setAba("perfil")} className="flex items-center justify-center shrink-0" style={{ padding: 4 }}>
-                {compartilhamento.membros.map((m, i) => <AvatarCompartilhado key={m.uid} membro={m} tamanho={TAMANHO_ICONE_CABECALHO} sobrepor={i > 0} />)}
+                {compartilhamento.membros.map((m, i) => <AvatarCompartilhado key={m.uid} membro={m} tamanho={aba === "perfil" ? 32 : TAMANHO_ICONE_CABECALHO} sobrepor={i > 0} />)}
               </button>
             </div>
           </div>
@@ -1086,53 +1086,50 @@ function PainelCompartilhamento({ conta, usuario, bloqueado }) {
   const [email, setEmail] = useState(''), [gerenciar, setGerenciar] = useState(false), [convidando, setConvidando] = useState(false), [confirmar, setConfirmar] = useState(false);
   const dono = conta.uidDono === usuario.uid, ativo = !!conta.config?.parceiro;
   const desabilitado = bloqueado || conta.ocupado;
-  return <div className="rounded-2xl border p-4" style={{ background: COR.cartao, borderColor: COR.linha }}>
-    <div className="flex justify-between items-center gap-2"><h3 className="font-bold">Conta compartilhada</h3><span className="text-xs rounded-full px-2 py-1" style={{ color: ativo ? COR.verde : COR.tintaSuave, background: ativo ? COR.verdeClaro : COR.papel }}>{ativo ? 'Ativa' : 'Individual'}</span></div>
-    <div className="flex items-center gap-2 mt-3"><div className="flex">{conta.membros.map((m, i) => <AvatarCompartilhado key={m.uid} membro={m} sobrepor={i > 0} />)}</div><span className="text-sm">{ativo ? conta.membros.map((m) => m.uid === usuario.uid ? 'Você' : m.nome.split(' ')[0]).join(' e ') : 'Somente você'}</span></div>
-    <button type="button" onClick={() => setGerenciar((v) => !v)} className="w-full flex items-center gap-2 py-3 mt-3 border-t text-sm" style={{ borderColor: COR.linha }}><User size={19} />Gerenciar acesso<ChevronRight size={16} className="ml-auto" /></button>
+  return <div className="perfil-cartao perfil-compartilhada">
+    <div className="flex justify-between items-center gap-2"><h3 className="font-bold">Conta compartilhada</h3><span className="text-xs rounded-full px-2.5 py-1.5 inline-flex items-center gap-1.5 shrink-0" style={{ color: ativo ? COR.verde : COR.tintaSuave, background: ativo ? COR.verdeClaro : COR.papel }}>{ativo && <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: '#128363' }} />}{ativo ? 'Ativa' : 'Individual'}</span></div>
+    <div className="perfil-fotos"><div className="flex">{conta.membros.map((m, i) => <AvatarCompartilhado key={m.uid} membro={m} tamanho={46} sobrepor={i > 0} />)}</div><span style={{ fontSize: 14, color: "#526079" }}>{ativo ? conta.membros.map((m) => m.uid === usuario.uid ? 'Você' : m.nome.split(' ')[0]).join(' e ') : 'Somente você'}</span></div>
+    <button type="button" onClick={() => setGerenciar((v) => !v)} className="perfil-linha border-t" style={{ borderColor: COR.linha }}><Users size={27} />Gerenciar acesso<ChevronRight size={21} className="ml-auto" /></button>
     {gerenciar && <div className="text-sm pb-3">{conta.membros.map((m) => <div key={m.uid} className="flex justify-between gap-2 py-2"><span>{m.nome}</span><span className="text-xs">{m.uid === conta.uidDono ? 'Responsável' : 'Participante'}</span></div>)}
+      {ativo && <p className="text-xs py-2" style={{ color: COR.tintaSuave }}>Este espaço permite duas pessoas. Para convidar outra, encerre o acesso atual.</p>}
       {ativo && (!confirmar ? <button type="button" disabled={desabilitado} onClick={() => setConfirmar(true)} className="text-xs py-2 disabled:opacity-50" style={{ color: COR.vermelho }}>{dono ? 'Remover acesso da outra pessoa' : 'Sair do compartilhamento'}</button> : <div className="rounded-xl p-3" style={{ background: COR.papel }}><p className="text-xs">O acesso compartilhado será encerrado. Os registros permanecem na conta do responsável.</p><button type="button" disabled={desabilitado} onClick={async () => { await conta.encerrar(); setConfirmar(false); }} className="text-xs font-bold py-3 mr-3 disabled:opacity-50" style={{ color: COR.vermelho }}>Confirmar</button><button type="button" onClick={() => setConfirmar(false)} className="text-xs">Cancelar</button></div>)}
       {conta.enviados.map((c) => <div key={c.id} className="text-xs py-2 break-all">Convite pendente: {c.email}<button type="button" disabled={desabilitado} onClick={() => conta.cancelar(c.id)} className="block py-2" style={{ color: COR.vermelho }}>Cancelar convite</button></div>)}
     </div>}
-    {dono && !ativo && <><button type="button" onClick={() => setConvidando((v) => !v)} className="w-full flex items-center gap-2 py-3 border-t text-sm" style={{ borderColor: COR.linha }}><UserPlus size={19} />Convidar pessoa<ChevronRight size={16} className="ml-auto" /></button>
-      {convidando && <form onSubmit={(e) => { e.preventDefault(); void conta.convidar(email); }}><label className="text-xs">E-mail da conta Google<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded-xl p-3 mt-1 text-sm" placeholder="nome@gmail.com" /></label><p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>Use o e-mail exatamente como aparece no Perfil da outra conta. O convite aparece no aplicativo e permite ver, editar e excluir os dados deste espaço.</p><button disabled={desabilitado} className="w-full rounded-xl py-3 mt-2 text-sm text-white disabled:opacity-50" style={{ background: COR.ouro }}>{conta.ocupado ? 'Aguarde…' : 'Enviar convite'}</button></form>}
+    {dono && <><button type="button" onClick={() => { if (ativo) { setGerenciar(true); setConvidando(false); } else setConvidando((v) => !v); }} className="perfil-linha border-t" style={{ borderColor: COR.linha }}><UserPlus size={27} />Convidar pessoa<ChevronRight size={21} className="ml-auto" /></button>
+      {convidando && !ativo && <form onSubmit={(e) => { e.preventDefault(); void conta.convidar(email); }}><label className="text-xs">E-mail da conta Google<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded-xl p-3 mt-1 text-sm" placeholder="nome@gmail.com" /></label><p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>Use o e-mail exatamente como aparece no Perfil da outra conta. O convite aparece no aplicativo e permite ver, editar e excluir os dados deste espaço.</p><button disabled={desabilitado} className="w-full rounded-xl py-3 mt-2 text-sm text-white disabled:opacity-50" style={{ background: COR.ouro }}>{conta.ocupado ? 'Aguarde…' : 'Enviar convite'}</button></form>}
     </>}
     {conta.convites.map((c) => <div key={c.id} className="rounded-xl p-3 mt-3" style={{ background: COR.ouroClaro }}><p className="text-sm font-semibold">Convite de {c.dono.nome}</p><p className="text-xs mt-1">Ao aceitar, você passa a usar os dados desta pessoa. Seus dados pessoais continuam guardados separadamente. Para voltar a eles, saia do compartilhamento.</p><button type="button" disabled={desabilitado} onClick={() => conta.aceitar(c)} className="text-sm font-bold py-3 disabled:opacity-50" style={{ color: COR.ouro }}>Aceitar convite</button></div>)}
     {bloqueado && <p className="text-xs mt-2">Aguarde o salvamento antes de alterar o compartilhamento.</p>}
     {conta.erro && <p role="alert" className="text-xs mt-3" style={{ color: COR.vermelho }}>{conta.erro}</p>}
-    <p className="text-xs mt-3" style={{ color: COR.tintaSuave }}>Cada pessoa entra com sua própria conta Google.</p>
+    <p className="border-t" style={{ color: "#697386", fontSize: 12, lineHeight: 1.5, paddingTop: 10, borderColor: COR.linha }}>Cada pessoa entra com sua própria conta Google.</p>
   </div>;
 }
 
+function MarcaGooglePerfil() {
+  return <svg width="19" height="19" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3A12 12 0 1 1 32 14.1l5.7-5.7A20 20 0 1 0 44 24c0-1.2-.1-2.4-.4-3.5Z" /><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8A12 12 0 0 1 32 14.1l5.7-5.7A20 20 0 0 0 6.3 14.7Z" /><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.5-5.2l-6.2-5.2A12 12 0 0 1 12.7 28l-6.5 5A20 20 0 0 0 24 44Z" /><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3a12 12 0 0 1-4 5.6l6.2 5.2A20 20 0 0 0 44 24c0-1.2-.1-2.4-.4-3.5Z" /></svg>;
+}
 function PerfilTab({ compartilhamento, usuario, onExportar, onSair, temPendencias, erroSaida }) {
-  return (
-    <section className="flex flex-col gap-6" aria-label="Perfil da conta">
-      <div><h2 className="text-2xl font-bold" style={{ color: COR.tinta }}>Perfil</h2><p className="text-sm mt-1" style={{ color: COR.tintaSuave }}>Sua conta e seus dados</p></div>
-      <div className="rounded-2xl border p-6 flex flex-col items-center text-center" style={{ background: COR.cartao, borderColor: COR.linha }}>
-        <div className="rounded-full overflow-hidden flex items-center justify-center mb-4" style={{ width: 80, height: 80, background: COR.ouroClaro, color: COR.ouro }}>
-          {usuario.photoURL ? <img src={usuario.photoURL} alt="Foto do perfil" referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : <span className="text-3xl font-bold">{(usuario.displayName || usuario.email || "?").charAt(0).toUpperCase()}</span>}
-        </div>
-        <h3 className="text-lg font-bold break-words w-full">{usuario.displayName || "Usuário"}</h3>
-        <p className="text-sm mt-1 break-all" style={{ color: COR.tintaSuave }}>{usuario.email}</p>
-        <span className="rounded-full px-3 py-1 text-xs font-semibold mt-4" style={{ background: COR.ouroClaro, color: COR.ouro }}>Conta Google</span>
-      </div>
-      <PainelCompartilhamento conta={compartilhamento} usuario={usuario} bloqueado={temPendencias} />
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Meus dados</h3>
-        <button onClick={onExportar} className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left" style={{ background: COR.cartao, borderColor: COR.linha }}>
-          <span className="p-2 rounded-xl" style={{ background: COR.ouroClaro, color: COR.ouro }}><Download size={21} /></span>
-          <span className="flex-1 min-w-0"><span className="block text-sm font-semibold">Exportar dados</span><span className="block text-xs mt-1" style={{ color: COR.tintaSuave }}>Baixe uma cópia das suas informações</span></span><ChevronRight size={18} color={COR.tintaSuave} />
-        </button>
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold mb-2">Conta</h3>
-        <button disabled={temPendencias} onClick={onSair} className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left disabled:opacity-60" style={{ background: COR.cartao, borderColor: COR.linha, color: COR.vermelho }}>
-          <LogOut size={21} /><span className="text-sm font-semibold">{temPendencias ? "Aguarde o salvamento" : "Sair da conta"}</span>
-        </button>
-        {erroSaida && <p role="alert" className="text-sm mt-3" style={{ color: COR.vermelho }}>{erroSaida}</p>}
-      </div>
-    </section>
-  );
+  return <section className="perfil-referencia flex flex-col" style={{ gap: 14 }} aria-label="Perfil da conta">
+    <style>{`
+      .perfil-referencia { color: #0F173B; }
+      .perfil-referencia .perfil-cartao { background: #FFFFFF; border: 1px solid #E5E9EF; border-radius: 12px; }
+      .perfil-referencia .perfil-linha { display: flex; width: 100%; align-items: center; gap: 16px; padding: 16px 0; text-align: left; font-size: 16px; line-height: 1.4; color: #182346; }
+      .perfil-referencia .perfil-linha svg { flex-shrink: 0; color: #526079; stroke-width: 1.65; }
+      .perfil-referencia .perfil-compartilhada { padding: 16px; }
+      .perfil-referencia .perfil-fotos { display: flex; align-items: center; gap: 10px; margin: 12px 0 14px; }
+      .perfil-referencia .perfil-compartilhada h3 { font-size: 18px; line-height: 1.3; }
+      @media (max-width: 359px) { .perfil-referencia .perfil-compartilhada h3 { font-size: 16px; } .perfil-referencia .perfil-linha { font-size: 14px; gap: 10px; } }
+    `}</style>
+    <h2 className="font-bold" style={{ fontSize: 30, lineHeight: 1.15, letterSpacing: '-.035em', margin: '0 0 2px' }}>Perfil</h2>
+    <div className="perfil-cartao flex items-center" style={{ padding: '16px 12px', gap: 12, minHeight: 108 }}>
+      <AvatarCompartilhado membro={{ nome: usuario.displayName || usuario.email || 'Usuário', foto: usuario.photoURL }} tamanho={72} />
+      <div className="min-w-0 flex-1"><h3 className="font-semibold break-words" style={{ fontSize: 18, lineHeight: 1.3 }}>{(usuario.displayName || 'Usuário').split(/\s+/)[0]}</h3><p className="break-all" style={{ fontSize: 14, color: '#697386', marginTop: 4 }}>{usuario.email}</p><span className="inline-flex items-center rounded-full" style={{ padding: '5px 8px', gap: 6, marginTop: 7, background: '#EAF2FF', fontSize: 'clamp(10px, 3vw, 13px)', whiteSpace: 'nowrap' }}><MarcaGooglePerfil />Conectado com Google</span></div>
+    </div>
+    <PainelCompartilhamento conta={compartilhamento} usuario={usuario} bloqueado={temPendencias} />
+    <button type="button" onClick={onExportar} className="perfil-cartao flex items-center text-left" style={{ padding: '18px 16px', gap: 16, color: '#182346', minHeight: 58 }}><Download size={26} strokeWidth={1.65} color="#526079" /><span className="flex-1" style={{ fontSize: 16 }}>Exportar meus dados</span><ChevronRight size={21} color="#526079" /></button>
+    <button type="button" disabled={temPendencias} onClick={onSair} className="flex items-center justify-between text-left disabled:opacity-60" style={{ padding: '15px 18px', minHeight: 48, borderRadius: 10, background: '#FFF0F2', border: '1px solid #F1BDC6', color: '#BD1235', fontSize: 16 }}><span>{temPendencias ? 'Aguarde o salvamento' : 'Sair da conta'}</span><LogOut size={23} strokeWidth={1.7} /></button>
+    {erroSaida && <p role="alert" className="text-sm" style={{ color: COR.vermelho }}>{erroSaida}</p>}
+  </section>;
 }
 
 const normalizarBusca = (texto) => String(texto || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
