@@ -1,6 +1,7 @@
 export function mensagemErroNuvem(erro) {
   const codigo = (erro?.code || "").replace(/^firestore\//, "");
   const mensagens = {
+    "conflito-compartilhado": "Este registro também foi alterado na outra conta. Use Exportar alterações pendentes e recarregue para conferir antes de editar novamente.",
     "permission-denied": "O Firebase recusou o acesso aos seus dados. Confira as regras do Firestore para sua conta.",
     unauthenticated: "Sua sessão precisa ser renovada. Entre novamente na sua conta.",
     unavailable: "Não foi possível conectar ao Firebase. Verifique sua internet e tente novamente.",
@@ -45,11 +46,13 @@ export function criarSincronizacaoNuvem({ padrao, escutar, gravar, notificar, te
       while (ativo && !erroLeitura && Object.keys(pendentes).length) {
         const lote = { ...pendentes };
         const patch = Object.fromEntries(Object.entries(lote).map(([campo, item]) => [campo, item.valor]));
-        await gravar(patch);
+        const bases = Object.fromEntries(Object.entries(lote).map(([campo, item]) => [campo, item.base]));
+        const gravado = await gravar(patch, bases);
         if (!ativo) return;
-        confirmado = { ...confirmado, ...patch };
+        confirmado = { ...confirmado, ...(gravado && typeof gravado === "object" && !Array.isArray(gravado) ? gravado : patch) };
         for (const [campo, item] of Object.entries(lote)) {
           if (pendentes[campo]?.revisao === item.revisao) delete pendentes[campo];
+          else if (pendentes[campo]) pendentes[campo].base = item.valor;
         }
       }
     } catch (erro) {
@@ -95,7 +98,7 @@ export function criarSincronizacaoNuvem({ padrao, escutar, gravar, notificar, te
       if (!ativo || !carregado || erroLeitura || erroSalvar) return;
       const anterior = pendentes[campo] ? pendentes[campo].valor : confirmado[campo];
       const valor = typeof valorOuFuncao === "function" ? valorOuFuncao(anterior) : valorOuFuncao;
-      pendentes[campo] = { valor, revisao: ++revisao };
+      pendentes[campo] = { valor, base: pendentes[campo] ? pendentes[campo].base : confirmado[campo], revisao: ++revisao };
       emitir();
       void salvar();
     },

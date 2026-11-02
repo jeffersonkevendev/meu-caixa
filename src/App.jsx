@@ -10,10 +10,12 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import {
   onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut,
 } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, runTransaction } from "firebase/firestore";
 import html2canvas from "html2canvas";
 import { auth, googleProvider, db } from "./firebase";
 import { criarSincronizacaoNuvem } from "./sincronizacaoNuvem";
+import { useContaCompartilhada } from "./contaCompartilhada";
+import { mesclarDados } from "./mesclarDados";
 
 const mensagemErroAuth = (codigo) => {
   const mapa = {
@@ -251,7 +253,13 @@ function useDadosNuvem(uid) {
       padrao: DADOS_PADRAO_NUVEM,
       escutar: (sucesso, erro) => onSnapshot(ref, { includeMetadataChanges: true }, sucesso, erro),
       // Substitui só os campos alterados, inclusive mapas, preservando perfil e outros campos.
-      gravar: (patch) => setDoc(ref, patch, { mergeFields: Object.keys(patch) }),
+      gravar: (patch, bases) => runTransaction(db, async (transacao) => {
+        const snap = await transacao.get(ref);
+        const remoto = { ...DADOS_PADRAO_NUVEM, ...(snap.data() || {}) };
+        const mesclado = Object.fromEntries(Object.entries(patch).map(([campo, valor]) => [campo, mesclarDados(bases[campo], valor, remoto[campo])]));
+        transacao.set(ref, mesclado, { mergeFields: Object.keys(mesclado) });
+        return mesclado;
+      }),
       notificar: setEstado,
     });
     sincronizacao.current = controle;
@@ -288,7 +296,7 @@ function useDadosNuvem(uid) {
   };
 }
 
-function TelaErroNuvem({ mensagem, temPendencias, salvando, tentarNovamente }) {
+function TelaErroNuvem({ mensagem, temPendencias, salvando, tentarNovamente, onExportar }) {
   const [erroSaida, setErroSaida] = useState("");
   const sair = async () => {
     try { await signOut(auth); }
@@ -303,6 +311,7 @@ function TelaErroNuvem({ mensagem, temPendencias, salvando, tentarNovamente }) {
         <button onClick={tentarNovamente} disabled={salvando} className="w-full rounded-xl p-3 text-white font-bold disabled:opacity-60" style={{ background: COR.ouro }}>
           {salvando ? "Salvando..." : "Tentar novamente"}
         </button>
+        {temPendencias && onExportar && <button onClick={onExportar} className="w-full mt-3 p-2 text-sm">Exportar alterações pendentes</button>}
         {!temPendencias && <button onClick={sair} className="w-full mt-3 p-2 text-sm">Sair e entrar novamente</button>}
         {erroSaida && <p role="alert" className="mt-3 text-sm" style={{ color: COR.vermelho }}>{erroSaida}</p>}
       </div>
@@ -486,15 +495,21 @@ export default function App() {
 
   if (usuario === undefined) return <TelaCarregando />;
   if (usuario === null) return <TelaLogin erroInicial={erroRedirecionamento} />;
-  return <MeuCaixaApp key={usuario.uid} usuario={usuario} />;
+  return <EspacoFinanceiro key={usuario.uid} usuario={usuario} />;
 }
 
-function MeuCaixaApp({ usuario }) {
+function EspacoFinanceiro({ usuario }) {
+  const compartilhamento = useContaCompartilhada(usuario);
+  if (!compartilhamento.pronto) return <TelaCarregando />;
+  return <MeuCaixaApp key={compartilhamento.uidDono} usuario={usuario} compartilhamento={compartilhamento} />;
+}
+
+function MeuCaixaApp({ usuario, compartilhamento }) {
   const [atalhoDespesas, setAtalhoDespesas] = useState(null);
   const [atalhoEntradas, setAtalhoEntradas] = useState(null);
   const [aba, setAba] = useLocalStorageState("meu-caixa:aba-ativa", "inicio");
   const [erroSaida, setErroSaida] = useState("");
-  const { despesas, setDespesas, receitas, setReceitas, cartoes, setCartoes, pagamentosCartaoPagos, setPagamentosCartaoPagos, orcamentoMensal, setOrcamentoMensal, carregando, salvando, temPendencias, erroNuvem, tentarNovamente } = useDadosNuvem(usuario.uid);
+  const { despesas, setDespesas, receitas, setReceitas, cartoes, setCartoes, pagamentosCartaoPagos, setPagamentosCartaoPagos, orcamentoMensal, setOrcamentoMensal, carregando, salvando, temPendencias, erroNuvem, tentarNovamente } = useDadosNuvem(compartilhamento.uidDono);
   const [mostrarListaCartoes, setMostrarListaCartoes] = useState(false);
   const [cartaoOpcoesId, setCartaoOpcoesId] = useState(null);
   const [mostrarCalculadora, setMostrarCalculadora] = useState(false);
@@ -506,7 +521,8 @@ function MeuCaixaApp({ usuario }) {
   const [mostrarOrcamento, setMostrarOrcamento] = useState(false);
 
   // A soma automática nos cartões usa o nome de quem está logado — sem precisar configurar nada.
-  const nomeDoUsuario = (usuario.displayName || usuario.email || "").trim();
+  const identidadeFinanceira = compartilhamento.config?.dono || { nome: usuario.displayName || usuario.email };
+  const nomeDoUsuario = (identidadeFinanceira.nome || "").trim();
   const primeiroNomeDoUsuario = nomeDoUsuario.split(/\s+/)[0] || "";
   const pessoasAutomaticas = useMemo(() => {
     const nomes = new Set();
@@ -688,7 +704,7 @@ function MeuCaixaApp({ usuario }) {
     catch (erro) { setErroSaida(mensagemErroAuth(erro.code)); }
   };
 
-  if (erroNuvem) return <TelaErroNuvem mensagem={erroNuvem} temPendencias={temPendencias} salvando={salvando} tentarNovamente={tentarNovamente} />;
+  if (erroNuvem) return <TelaErroNuvem mensagem={erroNuvem} temPendencias={temPendencias} salvando={salvando} tentarNovamente={tentarNovamente} onExportar={exportarDados} />;
   if (carregando) return <TelaCarregando />;
 
   return (
@@ -745,16 +761,8 @@ function MeuCaixaApp({ usuario }) {
                 ].map(({ nome, Icon, acao, desabilitado }) => <button key={nome} type="button" disabled={desabilitado} onClick={() => { setPainelCabecalho(null); acao(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm font-bold disabled:opacity-40" style={{ color: COR.tinta, fontWeight: 700, fontSize: 14, lineHeight: "20px", padding: "12px 16px", borderBottom: `1px solid ${COR.linha}` }}><Icon size={20} className="shrink-0" color={COR.tintaSuave} /><span>{nome}</span></button>)}
               </CortinaCabecalho>
               <AvisosVencimentos aberto={painelCabecalho === "avisos"} onAlternar={() => setPainelCabecalho((atual) => atual === "avisos" ? null : "avisos")} onFechar={() => setPainelCabecalho(null)} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} pagamentosCartaoPagos={pagamentosCartaoPagos} onAbrir={(mes) => { setAtalhoDespesas({ filtro: "Pendentes", mes }); setAba("despesas"); setCartaoSelecionadoId(null); }} />
-              <button aria-label="Abrir perfil" onClick={() => setAba("perfil")} className="flex items-center justify-center shrink-0 rounded-full" style={{ width: 32, height: 32, padding: 4 }}>
-                <span className="rounded-full overflow-hidden flex items-center justify-center" style={{ width: TAMANHO_ICONE_CABECALHO, height: TAMANHO_ICONE_CABECALHO, flexShrink: 0 }}>
-                  {usuario.photoURL ? (
-                    <img src={usuario.photoURL} alt="" className="w-full h-full object-cover" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} referrerPolicy="no-referrer" />
-                  ) : (
-                    <span className="flex items-center justify-center w-full h-full text-xs font-bold" style={{ background: COR.ouro, color: COR.texto }}>
-                      {(usuario.displayName || usuario.email || "?").charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </span>
+              <button aria-label="Abrir perfil" onClick={() => setAba("perfil")} className="flex items-center justify-center shrink-0" style={{ padding: 4 }}>
+                {compartilhamento.membros.map((m, i) => <AvatarCompartilhado key={m.uid} membro={m} tamanho={TAMANHO_ICONE_CABECALHO} sobrepor={i > 0} />)}
               </button>
             </div>
           </div>
@@ -783,7 +791,7 @@ function MeuCaixaApp({ usuario }) {
               despesas={despesas}
               cartoes={cartoes}
               pessoasAutomaticas={pessoasAutomaticas}
-              primeiroNome={primeiroNomeDoUsuario}
+              primeiroNome={(usuario.displayName || usuario.email || "").split(/\s+/)[0]}
               pagamentosCartaoPagos={pagamentosCartaoPagos}
               onAbrirDespesas={(filtro, mes) => { setAtalhoDespesas({ filtro, mes }); setAba("despesas"); setCartaoSelecionadoId(null); }}
               onIrPara={(destino) => { const cartao = cartoes.find((c) => destino === `cartao-${c.id}`); if (cartao) setCartaoSelecionadoId(cartao.id); setAba(destino); }}
@@ -804,11 +812,11 @@ function MeuCaixaApp({ usuario }) {
             />
           </div>
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao">
-            <PerfilTab usuario={usuario} onExportar={exportarDados} onSair={sairDaConta} temPendencias={temPendencias} erroSaida={erroSaida} />
+            <PerfilTab compartilhamento={compartilhamento} usuario={usuario} onExportar={exportarDados} onSair={sairDaConta} temPendencias={temPendencias} erroSaida={erroSaida} />
           </div>
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao"><GraficosTab despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} onVoltar={() => setAba("inicio")} /></div>
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao">
-            <EntradasTab receitas={receitas} onAtualizarReceitas={setReceitas} onRegistrarExclusao={(itens) => setUltimaExclusao({ tipo: "receita", itens, label: "Entrada excluída" })} nomeUsuario={primeiroNomeDoUsuario} atalho={atalhoEntradas} onVoltar={() => setAba("inicio")} />
+            <EntradasTab receitas={receitas} onAtualizarReceitas={setReceitas} onRegistrarExclusao={(itens) => setUltimaExclusao({ tipo: "receita", itens, label: "Entrada excluída" })} nomeUsuario={(usuario.displayName || usuario.email || "").split(/\s+/)[0]} atalho={atalhoEntradas} onVoltar={() => setAba("inicio")} />
           </div>
           {cartoes.map((cartao) => (
             <div key={cartao.id} className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0">
@@ -1069,7 +1077,34 @@ function Calculadora({ aberta, aoFechar }) {
   );
 }
 
-function PerfilTab({ usuario, onExportar, onSair, temPendencias, erroSaida }) {
+function AvatarCompartilhado({ membro, tamanho = 32, sobrepor = false }) {
+  return <span className="rounded-full overflow-hidden inline-flex items-center justify-center shrink-0 font-bold" style={{ width: tamanho, height: tamanho, marginLeft: sobrepor ? -5 : 0, border: '1px solid white', background: '#DBEAFE', color: '#2563EB', fontSize: tamanho * .4 }}>
+    {membro.foto ? <img src={membro.foto} alt={membro.nome} referrerPolicy="no-referrer" className="w-full h-full object-cover" /> : (membro.nome || '?').charAt(0).toUpperCase()}
+  </span>;
+}
+function PainelCompartilhamento({ conta, usuario, bloqueado }) {
+  const [email, setEmail] = useState(''), [gerenciar, setGerenciar] = useState(false), [convidando, setConvidando] = useState(false), [confirmar, setConfirmar] = useState(false);
+  const dono = conta.uidDono === usuario.uid, ativo = !!conta.config?.parceiro;
+  const desabilitado = bloqueado || conta.ocupado;
+  return <div className="rounded-2xl border p-4" style={{ background: COR.cartao, borderColor: COR.linha }}>
+    <div className="flex justify-between items-center gap-2"><h3 className="font-bold">Conta compartilhada</h3><span className="text-xs rounded-full px-2 py-1" style={{ color: ativo ? COR.verde : COR.tintaSuave, background: ativo ? COR.verdeClaro : COR.papel }}>{ativo ? 'Ativa' : 'Individual'}</span></div>
+    <div className="flex items-center gap-2 mt-3"><div className="flex">{conta.membros.map((m, i) => <AvatarCompartilhado key={m.uid} membro={m} sobrepor={i > 0} />)}</div><span className="text-sm">{ativo ? conta.membros.map((m) => m.uid === usuario.uid ? 'Você' : m.nome.split(' ')[0]).join(' e ') : 'Somente você'}</span></div>
+    <button type="button" onClick={() => setGerenciar((v) => !v)} className="w-full flex items-center gap-2 py-3 mt-3 border-t text-sm" style={{ borderColor: COR.linha }}><User size={19} />Gerenciar acesso<ChevronRight size={16} className="ml-auto" /></button>
+    {gerenciar && <div className="text-sm pb-3">{conta.membros.map((m) => <div key={m.uid} className="flex justify-between gap-2 py-2"><span>{m.nome}</span><span className="text-xs">{m.uid === conta.uidDono ? 'Responsável' : 'Participante'}</span></div>)}
+      {ativo && (!confirmar ? <button type="button" disabled={desabilitado} onClick={() => setConfirmar(true)} className="text-xs py-2 disabled:opacity-50" style={{ color: COR.vermelho }}>{dono ? 'Remover acesso da outra pessoa' : 'Sair do compartilhamento'}</button> : <div className="rounded-xl p-3" style={{ background: COR.papel }}><p className="text-xs">O acesso compartilhado será encerrado. Os registros permanecem na conta do responsável.</p><button type="button" disabled={desabilitado} onClick={async () => { await conta.encerrar(); setConfirmar(false); }} className="text-xs font-bold py-3 mr-3 disabled:opacity-50" style={{ color: COR.vermelho }}>Confirmar</button><button type="button" onClick={() => setConfirmar(false)} className="text-xs">Cancelar</button></div>)}
+      {conta.enviados.map((c) => <div key={c.id} className="text-xs py-2 break-all">Convite pendente: {c.email}<button type="button" disabled={desabilitado} onClick={() => conta.cancelar(c.id)} className="block py-2" style={{ color: COR.vermelho }}>Cancelar convite</button></div>)}
+    </div>}
+    {dono && !ativo && <><button type="button" onClick={() => setConvidando((v) => !v)} className="w-full flex items-center gap-2 py-3 border-t text-sm" style={{ borderColor: COR.linha }}><UserPlus size={19} />Convidar pessoa<ChevronRight size={16} className="ml-auto" /></button>
+      {convidando && <form onSubmit={(e) => { e.preventDefault(); void conta.convidar(email); }}><label className="text-xs">E-mail da conta Google<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded-xl p-3 mt-1 text-sm" placeholder="nome@gmail.com" /></label><p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>Use o e-mail exatamente como aparece no Perfil da outra conta. O convite aparece no aplicativo e permite ver, editar e excluir os dados deste espaço.</p><button disabled={desabilitado} className="w-full rounded-xl py-3 mt-2 text-sm text-white disabled:opacity-50" style={{ background: COR.ouro }}>{conta.ocupado ? 'Aguarde…' : 'Enviar convite'}</button></form>}
+    </>}
+    {conta.convites.map((c) => <div key={c.id} className="rounded-xl p-3 mt-3" style={{ background: COR.ouroClaro }}><p className="text-sm font-semibold">Convite de {c.dono.nome}</p><p className="text-xs mt-1">Ao aceitar, você passa a usar os dados desta pessoa. Seus dados pessoais continuam guardados separadamente. Para voltar a eles, saia do compartilhamento.</p><button type="button" disabled={desabilitado} onClick={() => conta.aceitar(c)} className="text-sm font-bold py-3 disabled:opacity-50" style={{ color: COR.ouro }}>Aceitar convite</button></div>)}
+    {bloqueado && <p className="text-xs mt-2">Aguarde o salvamento antes de alterar o compartilhamento.</p>}
+    {conta.erro && <p role="alert" className="text-xs mt-3" style={{ color: COR.vermelho }}>{conta.erro}</p>}
+    <p className="text-xs mt-3" style={{ color: COR.tintaSuave }}>Cada pessoa entra com sua própria conta Google.</p>
+  </div>;
+}
+
+function PerfilTab({ compartilhamento, usuario, onExportar, onSair, temPendencias, erroSaida }) {
   return (
     <section className="flex flex-col gap-6" aria-label="Perfil da conta">
       <div><h2 className="text-2xl font-bold" style={{ color: COR.tinta }}>Perfil</h2><p className="text-sm mt-1" style={{ color: COR.tintaSuave }}>Sua conta e seus dados</p></div>
@@ -1081,6 +1116,7 @@ function PerfilTab({ usuario, onExportar, onSair, temPendencias, erroSaida }) {
         <p className="text-sm mt-1 break-all" style={{ color: COR.tintaSuave }}>{usuario.email}</p>
         <span className="rounded-full px-3 py-1 text-xs font-semibold mt-4" style={{ background: COR.ouroClaro, color: COR.ouro }}>Conta Google</span>
       </div>
+      <PainelCompartilhamento conta={compartilhamento} usuario={usuario} bloqueado={temPendencias} />
       <div>
         <h3 className="text-sm font-semibold mb-2">Meus dados</h3>
         <button onClick={onExportar} className="w-full flex items-center gap-3 p-4 rounded-2xl border text-left" style={{ background: COR.cartao, borderColor: COR.linha }}>
