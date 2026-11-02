@@ -1084,6 +1084,11 @@ function AvatarCompartilhado({ membro, tamanho = 32, sobrepor = false }) {
 }
 function PainelCompartilhamento({ conta, usuario, bloqueado }) {
   const [mensagemConvite, setMensagemConvite] = useState('');
+  useEffect(() => {
+    if (!mensagemConvite) return;
+    const timer = window.setTimeout(() => setMensagemConvite(''), 3000);
+    return () => window.clearTimeout(timer);
+  }, [mensagemConvite]);
   const [email, setEmail] = useState(''), [gerenciar, setGerenciar] = useState(false), [convidando, setConvidando] = useState(false), [confirmar, setConfirmar] = useState(false);
   const dono = conta.uidDono === usuario.uid, ativo = !!conta.config?.parceiro;
   const desabilitado = bloqueado || conta.ocupado;
@@ -1096,14 +1101,21 @@ function PainelCompartilhamento({ conta, usuario, bloqueado }) {
       {ativo && (!confirmar ? <button type="button" disabled={desabilitado} onClick={() => setConfirmar(true)} className="text-xs py-2 disabled:opacity-50" style={{ color: COR.vermelho }}>{dono ? 'Remover acesso da outra pessoa' : 'Sair do compartilhamento'}</button> : <div className="rounded-xl p-3" style={{ background: COR.papel }}><p className="text-xs">O acesso compartilhado será encerrado. Os registros permanecem na conta do responsável.</p><button type="button" disabled={desabilitado} onClick={async () => { await conta.encerrar(); setConfirmar(false); }} className="text-xs font-bold py-3 mr-3 disabled:opacity-50" style={{ color: COR.vermelho }}>Confirmar</button><button type="button" onClick={() => setConfirmar(false)} className="text-xs">Cancelar</button></div>)}
     </div>}
     {dono && <><button type="button" onClick={() => { if (ativo) { setGerenciar(true); setConvidando(false); } else setConvidando((v) => !v); }} className="perfil-linha border-t" style={{ borderColor: COR.linha }}><UserPlus size={27} />Convidar pessoa<ChevronRight size={21} className="ml-auto" /></button>
-      {convidando && !ativo && <form onSubmit={async (e) => { e.preventDefault(); setMensagemConvite(''); const enviado = await conta.convidar(email); if (enviado) { setMensagemConvite('Convite criado. A outra pessoa deve entrar com esse Google e abrir Perfil para aceitar. Não é enviado e-mail.'); setEmail(''); } }}><label className="text-xs">E-mail da conta Google<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded-xl p-3 mt-1 text-sm" placeholder="nome@gmail.com" /></label><p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>Use o e-mail exatamente como aparece no Perfil da outra conta. O convite aparece no aplicativo e permite ver, editar e excluir os dados deste espaço.</p><button disabled={desabilitado} className="w-full rounded-xl py-3 mt-2 text-sm text-white disabled:opacity-50" style={{ background: COR.ouro }}>{conta.ocupado ? 'Enviando…' : 'Enviar convite'}</button></form>}
+      {convidando && !ativo && <form onSubmit={async (e) => { e.preventDefault(); setMensagemConvite(''); const enviado = await conta.convidar(email); if (enviado) { setMensagemConvite('Convite criado'); setEmail(''); setConvidando(false); } }}><label className="text-xs">E-mail da conta Google<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full border rounded-xl p-3 mt-1 text-sm" placeholder="nome@gmail.com" /></label><p className="text-xs mt-2" style={{ color: COR.tintaSuave }}>A pessoa poderá ver e alterar os dados deste espaço.</p><button disabled={desabilitado} className="w-full rounded-xl py-3 mt-2 text-sm text-white disabled:opacity-50" style={{ background: COR.ouro }}>{conta.ocupado ? 'Enviando…' : 'Enviar convite'}</button></form>}
     </>}
-    {mensagemConvite && !conta.erro && <p role="status" className="text-xs rounded-xl p-3 mt-3" style={{ color: COR.verde, background: COR.verdeClaro }}>{mensagemConvite}</p>}
-    {conta.enviados.length > 0 && <div className="mt-3"><h4 className="text-sm font-semibold">Convites enviados</h4>{conta.enviados.map((c) => <div key={c.id} className="rounded-xl border p-3 mt-2" style={{ borderColor: COR.linha }}><span className="text-xs font-semibold" style={{ color: '#92400E' }}>Aguardando aceite</span><p className="text-xs break-all mt-1">{c.email}</p><button type="button" disabled={desabilitado} onClick={async () => { setMensagemConvite(''); await conta.cancelar(c.id); }} className="text-xs py-2 disabled:opacity-50" style={{ color: COR.vermelho }}>Cancelar convite</button></div>)}</div>}
+    {mensagemConvite && !conta.erro && createPortal(
+      <div role="status" aria-live="polite" className="flex items-center gap-3 rounded-2xl bg-white px-5 py-3" style={{ position: 'fixed', bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))', left: '50%', transform: 'translateX(-50%)', zIndex: 10000, boxShadow: '0 6px 24px rgba(15,23,42,.14)', maxWidth: 'calc(100vw - 32px)', pointerEvents: 'none', color: COR.tinta }}>
+        <span className="inline-flex items-center justify-center rounded-full shrink-0" style={{ width: 30, height: 30, background: '#60BF80', color: '#fff' }}><Check size={20} aria-hidden="true" /></span>
+        <span className="text-sm whitespace-nowrap">{mensagemConvite}</span>
+      </div>, document.body)}
+    {conta.enviados.length > 0 && <div className="mt-2 space-y-2">{conta.enviados.map((c) => <div key={c.id} className="flex items-center gap-3 rounded-xl p-3" style={{ background: '#F3F5F9' }}>
+      <Mail size={26} className="shrink-0" style={{ color: '#526079' }} aria-hidden="true" />
+      <div className="min-w-0 flex-1"><p className="text-sm">Convite pendente</p><p className="text-xs mt-1" style={{ color: COR.tintaSuave, overflowWrap: 'anywhere' }}>{c.email}</p></div>
+      <button type="button" aria-label={`Cancelar convite para ${c.email}`} disabled={desabilitado} onClick={async () => { setMensagemConvite(''); await conta.cancelar(c.id); }} className="text-xs shrink-0 py-3 disabled:opacity-50" style={{ color: COR.ouro }}>Cancelar</button>
+    </div>)}</div>}
     {conta.convites.map((c) => <div key={c.id} className="rounded-xl p-3 mt-3" style={{ background: COR.ouroClaro }}><p className="text-sm font-semibold">Convite de {c.dono.nome}</p><p className="text-xs mt-1">Ao aceitar, você passa a usar os dados desta pessoa. Seus dados pessoais continuam guardados separadamente. Para voltar a eles, saia do compartilhamento.</p><button type="button" disabled={desabilitado} onClick={() => conta.aceitar(c)} className="text-sm font-bold py-3 disabled:opacity-50" style={{ color: COR.ouro }}>Aceitar convite</button></div>)}
     {bloqueado && <p className="text-xs mt-2">Aguarde o salvamento antes de alterar o compartilhamento.</p>}
     {conta.erro && <p role="alert" className="text-xs mt-3" style={{ color: COR.vermelho }}>{conta.erro}</p>}
-    <p className="border-t" style={{ color: "#697386", fontSize: 12, lineHeight: 1.5, paddingTop: 10, borderColor: COR.linha }}>Cada pessoa entra com sua própria conta Google.</p>
   </div>;
 }
 
