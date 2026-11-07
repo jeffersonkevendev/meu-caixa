@@ -1344,9 +1344,14 @@ function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasA
       }}
     >
       <div>
-        <p className="fonte-display text-2xl" style={{ color: COR.texto }}>
-          Olá{primeiroNome ? `, ${primeiroNome}` : ""}
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="fonte-display text-2xl min-w-0" style={{ color: COR.texto }}>
+            Olá{primeiroNome ? `, ${primeiroNome}` : ""}
+          </p>
+          <div className="shrink-0">
+            <BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} />
+          </div>
+        </div>
         <div className="flex items-center gap-1 mt-3">
           <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)}
             className="flex items-center justify-center shrink-0" style={{ width: 40, height: 44, color: COR.tintaSuave }}>
@@ -1358,7 +1363,6 @@ function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasA
             className="flex items-center justify-center shrink-0" style={{ width: 40, height: 44, color: COR.tintaSuave }}>
             <ChevronRight size={21} />
           </button>
-          <BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} />
         </div>
       </div>
 
