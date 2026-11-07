@@ -1256,17 +1256,59 @@ function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasA
   const [ocultarValores, setOcultarValores] = useState(false);
   const valorVisivel = (valor) => ocultarValores ? "R$ ••••" : fmt(valor);
   const [mesAtual, setMesAtual] = useState(() => mesResumoInicial());
+  const gestoMes = useRef(null);
+  const bloquearCliqueAte = useRef(0);
+  const mesDoCalendario = useRef(mesResumoInicial());
+
+  const mudarMes = (passo) => {
+    setMesAtual((mes) => deslocarMesCompra(mes, passo).slice(0, 7));
+  };
+
   useEffect(() => {
-    const atualizarMes = () => setMesAtual(mesResumoInicial());
+    const atualizarMes = () => {
+      const novoMes = mesResumoInicial();
+      const anterior = mesDoCalendario.current;
+      if (novoMes === anterior) return;
+      mesDoCalendario.current = novoMes;
+      setMesAtual((selecionado) => selecionado === anterior ? novoMes : selecionado);
+    };
     const intervalo = window.setInterval(atualizarMes, 60000);
     window.addEventListener("focus", atualizarMes);
-    document.addEventListener("visibilitychange", atualizarMes);
     return () => {
       window.clearInterval(intervalo);
       window.removeEventListener("focus", atualizarMes);
-      document.removeEventListener("visibilitychange", atualizarMes);
     };
   }, []);
+
+  const iniciarGestoMes = (evento) => {
+    evento.stopPropagation();
+    bloquearCliqueAte.current = 0;
+    gestoMes.current = evento.touches.length === 1
+      ? { x: evento.touches[0].clientX, y: evento.touches[0].clientY }
+      : null;
+  };
+
+  const moverGestoMes = (evento) => {
+    evento.stopPropagation();
+    const inicio = gestoMes.current;
+    if (!inicio) return;
+    if (evento.touches.length !== 1 ||
+        Math.abs(evento.touches[0].clientY - inicio.y) > 30) {
+      gestoMes.current = null;
+    }
+  };
+
+  const finalizarGestoMes = (evento) => {
+    evento.stopPropagation();
+    const inicio = gestoMes.current;
+    gestoMes.current = null;
+    if (!inicio || !evento.changedTouches.length) return;
+    const dx = evento.changedTouches[0].clientX - inicio.x;
+    const dy = evento.changedTouches[0].clientY - inicio.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    bloquearCliqueAte.current = Date.now() + 500;
+    mudarMes(dx < 0 ? 1 : -1);
+  };
 
   const despesasMes = useMemo(() => despesas.filter((d) => chaveDoMes(d.vencimento) === mesAtual), [despesas, mesAtual]);
   const totalDespesasReais = despesasMes.reduce((s, d) => s + d.valor, 0);
@@ -1288,16 +1330,40 @@ function InicioTab({ receitas = [], onAbrirEntradas, despesas, cartoes, pessoasA
     + cartoesComTotal.filter((c) => pagamentosCartaoPagos[`${c.id}-${mesAtual}`]).reduce((s, c) => s + c.totalMes, 0);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6"
+      style={{ touchAction: "pan-y pinch-zoom" }}
+      onTouchStart={iniciarGestoMes}
+      onTouchMove={moverGestoMes}
+      onTouchEnd={finalizarGestoMes}
+      onTouchCancel={(evento) => { evento.stopPropagation(); gestoMes.current = null; }}
+      onClickCapture={(evento) => {
+        if (Date.now() < bloquearCliqueAte.current) {
+          evento.preventDefault();
+          evento.stopPropagation();
+        }
+      }}
+    >
       <div>
         <p className="fonte-display text-2xl" style={{ color: COR.texto }}>
           Olá{primeiroNome ? `, ${primeiroNome}` : ""}
         </p>
-        <div className="flex items-center justify-between"><p className="text-sm" style={{ color: COR.tintaSuave }}>{rotuloDoMes(mesAtual)}</p><BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} /></div>
+        <div className="flex items-center gap-1 mt-3">
+          <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)}
+            className="flex items-center justify-center shrink-0" style={{ width: 40, height: 44, color: COR.tintaSuave }}>
+            <ChevronRight size={21} style={{ transform: "rotate(180deg)" }} />
+          </button>
+          <p aria-live="polite" className="flex-1 text-center font-semibold whitespace-nowrap"
+            style={{ fontSize: "clamp(12px, 3.8vw, 17px)", color: COR.tinta }}>{rotuloDoMes(mesAtual)}</p>
+          <button type="button" aria-label="Próximo mês" onClick={() => mudarMes(1)}
+            className="flex items-center justify-center shrink-0" style={{ width: 40, height: 44, color: COR.tintaSuave }}>
+            <ChevronRight size={21} />
+          </button>
+          <BotaoPrivacidade oculto={ocultarValores} onClick={() => setOcultarValores((v) => !v)} />
+        </div>
       </div>
 
       <button
-        onClick={() => onIrPara("despesas")}
+        onClick={() => onAbrirDespesas("Todas", mesAtual)}
         className="text-left rounded-2xl px-5 py-4"
         style={{
           background: COR.ouro, boxShadow: "0 8px 20px rgba(37,99,235,0.15)",
