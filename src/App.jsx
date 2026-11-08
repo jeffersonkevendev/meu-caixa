@@ -814,9 +814,9 @@ function MeuCaixaApp({ usuario, compartilhamento }) {
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao">
             <PerfilTab compartilhamento={compartilhamento} usuario={usuario} onExportar={exportarDados} onSair={sairDaConta} temPendencias={temPendencias} erroSaida={erroSaida} />
           </div>
-          <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao"><GraficosTab receitas={receitas} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} onAtualizarDespesas={setDespesas} onAtualizarCartoes={setCartoes} /></div>
+          <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao"><GraficosTab onAbrirEntradas={(mes) => { setAtalhoEntradas({ mes, origem: "graficos" }); setAba("entradas"); setCartaoSelecionadoId(null); }} receitas={receitas} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} onAtualizarDespesas={setDespesas} onAtualizarCartoes={setCartoes} /></div>
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao">
-            <EntradasTab receitas={receitas} onAtualizarReceitas={setReceitas} onRegistrarExclusao={(itens) => setUltimaExclusao({ tipo: "receita", itens, label: "Entrada excluída" })} nomeUsuario={(usuario.displayName || usuario.email || "").split(/\s+/)[0]} atalho={atalhoEntradas} onVoltar={() => setAba("inicio")} />
+            <EntradasTab receitas={receitas} onAtualizarReceitas={setReceitas} onRegistrarExclusao={(itens) => setUltimaExclusao({ tipo: "receita", itens, label: "Entrada excluída" })} nomeUsuario={(usuario.displayName || usuario.email || "").split(/\s+/)[0]} atalho={atalhoEntradas} onVoltar={() => setAba(atalhoEntradas?.origem === "graficos" ? "graficos" : "inicio")} />
           </div>
           {cartoes.map((cartao) => (
             <div key={cartao.id} className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0">
@@ -2421,7 +2421,7 @@ function calcularOrcamentoMensal(receitas, despesas, cartoes, pessoas, mes) {
   return { itens, totais, renda, saldo: renda - Object.values(totais).reduce((s, v) => s + v, 0), semClassificacao: itens.filter((i) => grupoOrcamento(i) === "sem").length };
 }
 
-function GraficosTab({ receitas = [], despesas, cartoes, pessoasAutomaticas, onAtualizarDespesas, onAtualizarCartoes }) {
+function GraficosTab({ onAbrirEntradas, receitas = [], despesas, cartoes, pessoasAutomaticas, onAtualizarDespesas, onAtualizarCartoes }) {
   const [mes, setMes] = useState(mesResumoInicial);
   const [oculto, setOculto] = useState(false);
   const [cartaoId, setCartaoId] = useState("");
@@ -2441,7 +2441,7 @@ function GraficosTab({ receitas = [], despesas, cartoes, pessoasAutomaticas, onA
       <span aria-live="polite" className="text-sm font-bold text-center">{rotuloDoMes(mes)}</span>
       <button type="button" aria-label="Próximo mês" className="p-3" onClick={() => setMes((m) => deslocarMesCompra(m, 1).slice(0, 7))}><ChevronRight size={22} color={COR.tintaSuave} /></button>
     </div>
-    <section className="rounded-2xl p-5 text-white" style={{ background: COR.ouro }}><h2 className="text-xs font-bold tracking-widest mb-2">RENDA DO MÊS</h2><p className="text-3xl font-bold fonte-mono">{valor(resumo.renda)}</p></section>
+    <button type="button" aria-label={`Ver entradas de ${rotuloDoMes(mes)}`} onClick={() => onAbrirEntradas(mes)} className="w-full text-left rounded-2xl p-5 text-white" style={{ background: COR.ouro }}><span className="block text-xs font-bold tracking-widest mb-2">RENDA DO MÊS</span><span className="block text-3xl font-bold fonte-mono">{valor(resumo.renda)}</span></button>
     <section className="rounded-2xl border p-4" style={caixa}>
       <h2 className="font-bold text-lg">Regra 60–30–10</h2>
       <div className="flex items-center gap-4 mt-4">
