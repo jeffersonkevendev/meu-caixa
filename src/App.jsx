@@ -1853,17 +1853,18 @@ function editarCompraComParcelas(compras, id, rascunho) {
   const valor = rascunho.negativo || rascunho.antecipado ? -magnitude : magnitude;
   const tipoLancamento = rascunho.antecipado ? "pagamento_antecipado" : rascunho.negativo ? "estorno" : "compra";
   const nome = rascunho.nome.trim(), descricao = rascunho.compra.trim();
+  const classificacao = grupoOrcamento(rascunho);
   let novos;
   if (rascunho.parcelada) {
     const grupoId = original.parcelaGrupoId || uid();
     novos = Array.from({ length: total - inicio + 1 }, (_, i) => ({
       id: i === 0 ? id : uid(), nome, compra: `${descricao} (parcela ${inicio + i}/${total})`,
-      valor, tipoLancamento, data: deslocarMesCompra(rascunho.mes, i), parcelaGrupoId: grupoId,
+      valor, tipoLancamento, grupoOrcamento: classificacao, data: deslocarMesCompra(rascunho.mes, i), parcelaGrupoId: grupoId,
       compraBase: descricao, parcelaNumero: inicio + i, totalParcelas: total,
     }));
   } else {
     const { parcelaGrupoId, compraBase, parcelaNumero, totalParcelas, ...resto } = original;
-    novos = [{ ...resto, nome, compra: descricao, valor, tipoLancamento, data: `${rascunho.mes}-01` }];
+    novos = [{ ...resto, nome, compra: descricao, valor, tipoLancamento, grupoOrcamento: classificacao, data: `${rascunho.mes}-01` }];
   }
   const mantidas = compras.filter((c) => !substituir.has(c.id)).map((c) => {
     // Vincula também as parcelas antigas anteriores, para futuras edições reconhecerem a série.
@@ -1991,7 +1992,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
 
   const [mesSelecionado, setMesSelecionado] = useState(mesAtualChave());
   const [mostrarForm, setMostrarForm] = useState(false);
-  const [nova, setNova] = useState({ nome: "", compra: "", valor: "", data: "" });
+  const [nova, setNova] = useState({ nome: "", compra: "", valor: "", data: "", grupoOrcamento: "sem" });
   const [valorNegativo, setValorNegativo] = useState(false);
   const [pagamentoAntecipado, setPagamentoAntecipado] = useState(false);
   const [dividir, setDividir] = useState(false);
@@ -2062,7 +2063,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
       novosRegistros = [{ id: uid(), nome: nova.nome.trim(), compra: nova.compra.trim(), valor, data: `${mesCompra}-01` }];
     }
 
-    novosRegistros = novosRegistros.map((c) => ({ ...c, tipoLancamento: pagamentoAntecipado ? "pagamento_antecipado" : valorNegativo ? "estorno" : "compra" }));
+    novosRegistros = novosRegistros.map((c) => ({ ...c, grupoOrcamento: grupoOrcamento(nova), tipoLancamento: pagamentoAntecipado ? "pagamento_antecipado" : valorNegativo ? "estorno" : "compra" }));
     if (dividir) {
       try { novosRegistros = dividirRegistrosCompras(novosRegistros, nova.nome, dividirCom); }
       catch (erro) { setErroNovaCompra(erro.message); return; }
@@ -2070,7 +2071,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
     onAtualizarCompras([...compras, ...novosRegistros]);
     setDividir(false);
     setDividirCom("");
-    setNova({ nome: "", compra: "", valor: "", data: "" });
+    setNova({ nome: "", compra: "", valor: "", data: "", grupoOrcamento: "sem" });
     setValorNegativo(false);
     setPagamentoAntecipado(false);
     setParcelada(false);
@@ -2085,7 +2086,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
     const info = dadosParcelamento(c);
     setErroEdicao("");
     setEditandoId(c.id);
-    setRascunho({ ...c, nome: c.nomePrincipal || c.nome, dividir: !!c.compartilhamentoId, dividirCom: c.nomeDivisao || "", compra: info.descricao, valor: formatarValorDigitado(String(Math.round(Math.abs(c.valorCompartilhado ?? c.valor) * 100))), negativo: c.valor < 0 && c.tipoLancamento !== "pagamento_antecipado", antecipado: c.tipoLancamento === "pagamento_antecipado", mes: chaveDoMes(c.data), parcelada: info.parcelada, parcelaAtual: String(info.numero), totalParcelas: info.parcelada ? String(info.total) : "" });
+    setRascunho({ ...c, grupoOrcamento: grupoOrcamento(c), nome: c.nomePrincipal || c.nome, dividir: !!c.compartilhamentoId, dividirCom: c.nomeDivisao || "", compra: info.descricao, valor: formatarValorDigitado(String(Math.round(Math.abs(c.valorCompartilhado ?? c.valor) * 100))), negativo: c.valor < 0 && c.tipoLancamento !== "pagamento_antecipado", antecipado: c.tipoLancamento === "pagamento_antecipado", mes: chaveDoMes(c.data), parcelada: info.parcelada, parcelaAtual: String(info.numero), totalParcelas: info.parcelada ? String(info.total) : "" });
   };
 
   const salvarEdicao = () => {
@@ -2172,6 +2173,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
               onChange={(e) => setNova({ ...nova, compra: e.target.value })}
             />
           </Campo>
+          <CampoClassificacao value={nova.grupoOrcamento} onChange={(grupo) => setNova({ ...nova, grupoOrcamento: grupo })} />
           <Campo label={parcelada ? "Mês da 1ª parcela lançada" : "Mês da compra"}>
             <input
               className={inputBase} style={{ borderColor: COR.linha }}
@@ -2284,6 +2286,7 @@ function CartaoTab({ ferramentasRef, cartao, primeiroNomeUsuario, onAtualizarRec
                     value={rascunho.valor}
                     onChange={(e) => setRascunho({ ...rascunho, valor: formatarValorDigitado(e.target.value) })}
                   />
+                  <CampoClassificacao value={rascunho.grupoOrcamento} onChange={(grupo) => setRascunho({ ...rascunho, grupoOrcamento: grupo })} />
                   <label className="flex items-center gap-2 text-sm font-medium" style={{ color: COR.tintaSuave }}>
                     <input
                       type="checkbox"
@@ -2384,6 +2387,15 @@ const GRUPOS_ORCAMENTO = [
   { id: "investimentos", nome: "Investimentos", percentual: 10, cor: "#0D9488", fundo: "#CCFBF1", Icon: TrendingUp },
 ];
 
+function CampoClassificacao({ value, onChange }) {
+  return <Campo label="Classificação · 60–30–10">
+    <select aria-label="Classificação da compra" value={value || "sem"} onChange={(e) => onChange(e.target.value)} className={inputBase + " w-full"} style={{ borderColor: COR.linha, background: COR.cartao }}>
+      <option value="sem">Sem classificação</option>
+      {GRUPOS_ORCAMENTO.map((grupo) => <option key={grupo.id} value={grupo.id}>{grupo.nome} · {grupo.percentual}%</option>)}
+    </select>
+  </Campo>;
+}
+
 function grupoOrcamento(item) {
   if (item.grupoOrcamento === "sem") return "sem";
   if (GRUPOS_ORCAMENTO.some((g) => g.id === item.grupoOrcamento)) return item.grupoOrcamento;
@@ -2450,11 +2462,11 @@ function GraficosTab({ receitas = [], despesas, cartoes, pessoasAutomaticas, onA
         <p className="text-xs font-semibold mt-2 flex items-center gap-1.5" style={{ color: statusCor }}>{temMeta && !resumo.semClassificacao && atingiu ? <CheckCircle2 size={15} /> : <Circle size={13} />}{status}{resumo.semClassificacao > 0 && temMeta ? " · parcial" : ""}</p>
       </section>;
     })}
-    {resumo.semClassificacao > 0 && <div className="rounded-2xl border p-4 text-sm" style={caixa}><strong>Sem classificação: {valor(resumo.totais.sem)}</strong><p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{resumo.semClassificacao} lançamentos. Classifique abaixo para concluir a comparação.</p></div>}
+    {resumo.semClassificacao > 0 && <div className="rounded-2xl border p-4 text-sm" style={caixa}><strong>Sem classificação: {valor(resumo.totais.sem)}</strong><p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{resumo.semClassificacao} lançamentos. Classifique as compras ao adicionar ou editar na aba Cartões. As despesas podem ser classificadas abaixo.</p></div>}
     <section className="rounded-2xl border p-4 flex items-center justify-between gap-3" style={{ background: resumo.saldo < 0 ? "#FFF1F2" : COR.verdeClaro, borderColor: resumo.saldo < 0 ? "#FECDD3" : "#BBE5D4", color: resumo.saldo < 0 ? COR.vermelho : COR.verde }}><div><h2 className="text-sm font-bold">{resumo.saldo < 0 ? "Saldo do mês negativo" : resumo.saldo > 0 ? "Saldo do mês positivo" : "Saldo do mês zerado"}</h2><p className="text-xs mt-1">Após gastos e investimentos</p></div><strong className="text-base whitespace-nowrap">{valor(resumo.saldo)}</strong></section>
-    <details className="rounded-2xl border p-4" style={caixa}><summary className="text-sm font-semibold cursor-pointer">Classificar lançamentos</summary><p className="text-xs mt-3 mb-2" style={{ color: COR.tintaSuave }}>A classificação vale para este lançamento. Inclui as mesmas pessoas e compras do resumo inicial.</p>
-      {!resumo.itens.length && <p className="text-sm py-3">Nenhum lançamento neste mês.</p>}
-      {resumo.itens.map((item) => <div key={`${item.origem}-${item.cartaoId || ""}-${item.id}`} className="py-3 border-t" style={{ borderColor: COR.linha }}><div className="flex justify-between gap-2 text-sm"><span className="min-w-0 break-words">{item.titulo || "Sem descrição"}</span><span className="shrink-0">{valor(Math.round(Number(item.valor || 0) * 100))}</span></div>{item.cartaoNome && <p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{item.cartaoNome} · {item.nome}</p>}<select aria-label={`Classificação de ${item.titulo || "lançamento"}`} value={grupoOrcamento(item)} onChange={(e) => classificar(item, e.target.value)} className="mt-2 w-full border rounded-xl px-3 py-2 text-sm" style={{ borderColor: COR.linha, background: COR.cartao }}><option value="sem">Sem classificação</option>{GRUPOS_ORCAMENTO.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}</select></div>)}
+    <details className="rounded-2xl border p-4" style={caixa}><summary className="text-sm font-semibold cursor-pointer">Classificar despesas</summary><p className="text-xs mt-3 mb-2" style={{ color: COR.tintaSuave }}>A classificação vale para esta despesa.</p>
+      {!resumo.itens.some((item) => item.origem === "despesa") && <p className="text-sm py-3">Nenhuma despesa neste mês.</p>}
+      {resumo.itens.filter((item) => item.origem === "despesa").map((item) => <div key={`${item.origem}-${item.cartaoId || ""}-${item.id}`} className="py-3 border-t" style={{ borderColor: COR.linha }}><div className="flex justify-between gap-2 text-sm"><span className="min-w-0 break-words">{item.titulo || "Sem descrição"}</span><span className="shrink-0">{valor(Math.round(Number(item.valor || 0) * 100))}</span></div>{item.cartaoNome && <p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{item.cartaoNome} · {item.nome}</p>}<select aria-label={`Classificação de ${item.titulo || "lançamento"}`} value={grupoOrcamento(item)} onChange={(e) => classificar(item, e.target.value)} className="mt-2 w-full border rounded-xl px-3 py-2 text-sm" style={{ borderColor: COR.linha, background: COR.cartao }}><option value="sem">Sem classificação</option>{GRUPOS_ORCAMENTO.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}</select></div>)}
     </details>
     <details className="rounded-2xl border p-4" style={caixa}><summary className="text-sm font-semibold cursor-pointer">Evolução mensal</summary>
       {oculto ? <p className="text-sm mt-4" style={{ color: COR.tintaSuave }}>Ative a exibição dos valores para ver a evolução.</p> : [{ titulo: "Despesas", chave: "despesas" }, { titulo: "Cartões", chave: "cartao" }].map((grafico) => <section key={grafico.chave} className="mt-5"><h3 className="font-semibold text-sm mb-3">{grafico.titulo}</h3>{grafico.chave === "cartao" && <select aria-label="Cartão do gráfico" value={selecionado} onChange={(e) => setCartaoId(e.target.value)} className="w-full rounded-xl border px-3 py-2 mb-4 text-sm" style={{ borderColor: COR.linha }}><option value="">Todos os cartões</option>{cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select>}{dados.length ? <div style={{ width: "100%", height: 230 }}><ResponsiveContainer><BarChart data={dados}><CartesianGrid strokeDasharray="3 3" stroke={COR.linha} /><XAxis dataKey="mesRotulo" tick={{ fontSize: 10, fill: COR.tintaSuave }} tickLine={false} /><YAxis width={56} tick={{ fontSize: 10, fill: COR.tintaSuave }} tickFormatter={(v) => `R$${v}`} /><Tooltip formatter={(v) => fmt(v)} /><Bar dataKey={grafico.chave} name={grafico.titulo} fill={COR.ouro} radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div> : <p className="text-sm">Nenhum lançamento para mostrar.</p>}</section>)}
