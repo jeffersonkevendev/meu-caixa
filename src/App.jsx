@@ -101,7 +101,7 @@ function IconeBanco({ cartao, tamanho = 48, circular = false }) {
   );
 }
 
-const CATEGORIAS = ["Moradia", "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Assinaturas", "Outros"];
+const CATEGORIAS = ["Moradia", "Alimentação", "Transporte", "Saúde", "Lazer", "Educação", "Assinaturas", "Investimentos", "Outros"];
 const CORES_CATEGORIA = ["#2563EB", "#2E7D5B", "#2A6F97", "#A83232", "#7A4FB5", "#B5651D", "#64748B", "#8A8F63"];
 const corCategoria = (nome) => {
   const i = CATEGORIAS.indexOf(nome);
@@ -814,7 +814,7 @@ function MeuCaixaApp({ usuario, compartilhamento }) {
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao">
             <PerfilTab compartilhamento={compartilhamento} usuario={usuario} onExportar={exportarDados} onSair={sairDaConta} temPendencias={temPendencias} erroSaida={erroSaida} />
           </div>
-          <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao"><GraficosTab despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} onVoltar={() => setAba("inicio")} /></div>
+          <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao"><GraficosTab receitas={receitas} despesas={despesas} cartoes={cartoes} pessoasAutomaticas={pessoasAutomaticas} onAtualizarDespesas={setDespesas} onAtualizarCartoes={setCartoes} /></div>
           <div className="max-w-2xl mx-auto px-5 pt-6 pb-28 w-full shrink-0 oculta-impressao">
             <EntradasTab receitas={receitas} onAtualizarReceitas={setReceitas} onRegistrarExclusao={(itens) => setUltimaExclusao({ tipo: "receita", itens, label: "Entrada excluída" })} nomeUsuario={(usuario.displayName || usuario.email || "").split(/\s+/)[0]} atalho={atalhoEntradas} onVoltar={() => setAba("inicio")} />
           </div>
@@ -2378,18 +2378,87 @@ function dadosEvolucaoMensal(despesas, cartoes, pessoasAutomaticas, cartaoId) {
   return resultado.slice(-12);
 }
 
-function GraficosTab({ despesas, cartoes, pessoasAutomaticas, onVoltar }) {
+const GRUPOS_ORCAMENTO = [
+  { id: "essenciais", nome: "Essenciais", percentual: 60, cor: "#2563EB", fundo: "#DBEAFE", Icon: Home },
+  { id: "estilo", nome: "Estilo de vida", percentual: 30, cor: "#9333EA", fundo: "#F3E8FF", Icon: Utensils },
+  { id: "investimentos", nome: "Investimentos", percentual: 10, cor: "#0D9488", fundo: "#CCFBF1", Icon: TrendingUp },
+];
+
+function grupoOrcamento(item) {
+  if (item.grupoOrcamento === "sem") return "sem";
+  if (GRUPOS_ORCAMENTO.some((g) => g.id === item.grupoOrcamento)) return item.grupoOrcamento;
+  if (["Moradia", "Alimentação", "Transporte", "Saúde", "Educação"].includes(item.categoria)) return "essenciais";
+  if (["Lazer", "Assinaturas"].includes(item.categoria)) return "estilo";
+  if (item.categoria === "Investimentos") return "investimentos";
+  return "sem";
+}
+
+function calcularOrcamentoMensal(receitas, despesas, cartoes, pessoas, mes) {
+  const itens = despesas.filter((d) => chaveDoMes(d.vencimento) === mes).map((d) => ({ ...d, origem: "despesa", titulo: d.descricao }));
+  for (const cartao of cartoes) {
+    const incluidos = pessoasAutomaticasDoCartao(cartao, pessoas);
+    for (const compra of cartao.compras || []) {
+      if (chaveDoMes(compra.data) === mes && ehPessoaAutomatica(compra.nome, incluidos)) {
+        itens.push({ ...compra, origem: "compra", cartaoId: cartao.id, cartaoNome: cartao.nome, titulo: compra.compra });
+      }
+    }
+  }
+  const totais = { essenciais: 0, estilo: 0, investimentos: 0, sem: 0 };
+  for (const item of itens) totais[grupoOrcamento(item)] += Math.round((Number(item.valor) || 0) * 100);
+  const renda = Math.round(totalEntradasDoMes(receitas, mes) * 100);
+  return { itens, totais, renda, saldo: renda - Object.values(totais).reduce((s, v) => s + v, 0), semClassificacao: itens.filter((i) => grupoOrcamento(i) === "sem").length };
+}
+
+function GraficosTab({ receitas = [], despesas, cartoes, pessoasAutomaticas, onAtualizarDespesas, onAtualizarCartoes }) {
+  const [mes, setMes] = useState(mesResumoInicial);
+  const [oculto, setOculto] = useState(false);
   const [cartaoId, setCartaoId] = useState("");
+  const resumo = useMemo(() => calcularOrcamentoMensal(receitas, despesas, cartoes, pessoasAutomaticas, mes), [receitas, despesas, cartoes, pessoasAutomaticas, mes]);
   const selecionado = cartoes.some((c) => c.id === cartaoId) ? cartaoId : "";
   const dados = useMemo(() => dadosEvolucaoMensal(despesas, cartoes, pessoasAutomaticas, selecionado), [despesas, cartoes, pessoasAutomaticas, selecionado]);
-  return <div className="flex flex-col gap-6">
-    <div className="flex items-center gap-3"><button type="button" aria-label="Voltar ao início" onClick={onVoltar} className="p-2 rounded-xl" style={{ color: COR.ouro }}><ArrowLeft size={22} /></button><h1 className="text-xl font-bold">Gráficos</h1></div>
-    <p className="text-sm" style={{ color: COR.tintaSuave }}>Evolução dos últimos 12 meses com registros. O total de despesas inclui as faturas de todos os cartões.</p>
-    {[{ titulo: "Evolução mensal das despesas", chave: "despesas" }, { titulo: "Evolução mensal do cartão", chave: "cartao" }].map((grafico) => <section key={grafico.chave} className="rounded-2xl border p-4" style={{ background: COR.cartao, borderColor: COR.linha }}>
-      <h2 className="font-semibold text-sm mb-3">{grafico.titulo}</h2>
-      {grafico.chave === "cartao" && <select aria-label="Cartão do gráfico" value={selecionado} onChange={(e) => setCartaoId(e.target.value)} className="w-full rounded-xl border px-3 py-2 mb-4 text-sm" style={{ borderColor: COR.linha }}><option value="">Todos os cartões</option>{cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select>}
-      {dados.length ? <div style={{ width: "100%", height: 230 }}><ResponsiveContainer><BarChart data={dados}><CartesianGrid strokeDasharray="3 3" stroke={COR.linha} /><XAxis dataKey="mesRotulo" tick={{ fontSize: 10, fill: COR.tintaSuave }} tickLine={false} /><YAxis width={56} tick={{ fontSize: 10, fill: COR.tintaSuave }} tickFormatter={(v) => `R$${v}`} /><Tooltip formatter={(v) => fmt(v)} contentStyle={{ borderRadius: 12, borderColor: COR.linha }} /><Bar dataKey={grafico.chave} name={grafico.chave === "despesas" ? "Despesas" : "Fatura"} fill={COR.ouro} radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div> : <p className="text-sm py-6" style={{ color: COR.tintaSuave }}>Adicione despesas ou compras para ver a evolução mensal.</p>}
-    </section>)}
+  const valor = (centavos) => oculto ? "R$ ••••" : fmt(centavos / 100);
+  const caixa = { background: COR.cartao, borderColor: COR.linha };
+  const classificar = (item, grupo) => {
+    if (item.origem === "despesa") onAtualizarDespesas((lista) => lista.map((d) => d.id === item.id ? { ...d, grupoOrcamento: grupo } : d));
+    else onAtualizarCartoes((lista) => lista.map((c) => c.id === item.cartaoId ? { ...c, compras: c.compras.map((compra) => compra.id === item.id ? { ...compra, grupoOrcamento: grupo } : compra) } : c));
+  };
+  return <div className="flex flex-col gap-5">
+    <div className="flex items-center justify-between"><h1 className="text-2xl font-bold">Gráficos</h1><BotaoPrivacidade oculto={oculto} onClick={() => setOculto((v) => !v)} /></div>
+    <div className="flex items-center justify-between gap-2">
+      <button type="button" aria-label="Mês anterior" className="p-3" onClick={() => setMes((m) => deslocarMesCompra(m, -1).slice(0, 7))}><ChevronRight size={22} style={{ transform: "rotate(180deg)", color: COR.tintaSuave }} /></button>
+      <span aria-live="polite" className="text-sm font-bold text-center">{rotuloDoMes(mes)}</span>
+      <button type="button" aria-label="Próximo mês" className="p-3" onClick={() => setMes((m) => deslocarMesCompra(m, 1).slice(0, 7))}><ChevronRight size={22} color={COR.tintaSuave} /></button>
+    </div>
+    <section className="rounded-2xl p-5 text-white" style={{ background: COR.ouro }}><h2 className="text-xs font-bold tracking-widest mb-2">RENDA DO MÊS</h2><p className="text-3xl font-bold fonte-mono">{valor(resumo.renda)}</p></section>
+    <section className="rounded-2xl border p-4" style={caixa}>
+      <h2 className="font-bold text-lg">Regra 60–30–10</h2>
+      <div className="flex items-center gap-4 mt-4">
+        <div role="img" aria-label="Metas: 60% essenciais, 30% estilo de vida, 10% investimentos" className="relative rounded-full shrink-0" style={{ width: "clamp(90px, 28vw, 130px)", aspectRatio: "1", background: "conic-gradient(#2563EB 0% 60%, #9333EA 60% 90%, #0D9488 90% 100%)" }}><div className="absolute rounded-full flex items-center justify-center font-bold text-xs" style={{ inset: "23%", background: COR.cartao }}>Metas</div></div>
+        <div className="flex-1 min-w-0 space-y-3">{GRUPOS_ORCAMENTO.map((g) => <div key={g.id} className="flex items-center gap-2 text-xs"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: g.cor }} /><span>{g.nome} <strong>{g.percentual}%</strong></span></div>)}</div>
+      </div>
+      {resumo.renda <= 0 && <p className="text-xs mt-4" style={{ color: COR.tintaSuave }}>Cadastre uma entrada positiva neste mês para calcular as metas.</p>}
+    </section>
+    {GRUPOS_ORCAMENTO.map(({ id, nome, percentual, cor, fundo, Icon }) => {
+      const realizado = resumo.totais[id], meta = Math.round(resumo.renda * percentual / 100), temMeta = resumo.renda > 0;
+      const diferenca = realizado - meta, investimento = id === "investimentos";
+      const atingiu = investimento ? diferenca >= 0 : diferenca <= 0;
+      const statusCor = !temMeta || resumo.semClassificacao ? COR.tintaSuave : atingiu ? COR.verde : COR.vermelho;
+      const status = !temMeta ? "Sem renda para calcular" : investimento ? (atingiu ? "Meta atingida" : `Faltam ${valor(-diferenca)}`) : diferenca > 0 ? `${valor(diferenca)} acima da meta` : `${valor(-diferenca)} disponíveis`;
+      return <section key={id} className="rounded-2xl border p-4" style={caixa}>
+        <div className="flex items-center gap-3"><span className="rounded-full p-3 shrink-0" style={{ background: fundo, color: cor }}><Icon size={22} /></span><div className="min-w-0"><h3 className="font-bold text-sm">{nome} · {percentual}%</h3><p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{valor(realizado)} / {temMeta ? valor(meta) : "—"}</p></div></div>
+        {!oculto && <div className="h-2 rounded-full overflow-hidden mt-3" style={{ background: COR.linha }}><div className="h-full rounded-full" style={{ width: `${temMeta && meta > 0 ? Math.min(100, Math.max(0, realizado / meta * 100)) : 0}%`, background: !investimento && diferenca > 0 ? COR.vermelho : cor }} /></div>}
+        <p className="text-xs font-semibold mt-2 flex items-center gap-1.5" style={{ color: statusCor }}>{temMeta && !resumo.semClassificacao && atingiu ? <CheckCircle2 size={15} /> : <Circle size={13} />}{status}{resumo.semClassificacao > 0 && temMeta ? " · parcial" : ""}</p>
+      </section>;
+    })}
+    {resumo.semClassificacao > 0 && <div className="rounded-2xl border p-4 text-sm" style={caixa}><strong>Sem classificação: {valor(resumo.totais.sem)}</strong><p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{resumo.semClassificacao} lançamentos. Classifique abaixo para concluir a comparação.</p></div>}
+    <section className="rounded-2xl border p-4 flex items-center justify-between gap-3" style={{ background: resumo.saldo < 0 ? "#FFF1F2" : COR.verdeClaro, borderColor: resumo.saldo < 0 ? "#FECDD3" : "#BBE5D4", color: resumo.saldo < 0 ? COR.vermelho : COR.verde }}><div><h2 className="text-sm font-bold">{resumo.saldo < 0 ? "Saldo do mês negativo" : resumo.saldo > 0 ? "Saldo do mês positivo" : "Saldo do mês zerado"}</h2><p className="text-xs mt-1">Após gastos e investimentos</p></div><strong className="text-base whitespace-nowrap">{valor(resumo.saldo)}</strong></section>
+    <details className="rounded-2xl border p-4" style={caixa}><summary className="text-sm font-semibold cursor-pointer">Classificar lançamentos</summary><p className="text-xs mt-3 mb-2" style={{ color: COR.tintaSuave }}>A classificação vale para este lançamento. Inclui as mesmas pessoas e compras do resumo inicial.</p>
+      {!resumo.itens.length && <p className="text-sm py-3">Nenhum lançamento neste mês.</p>}
+      {resumo.itens.map((item) => <div key={`${item.origem}-${item.cartaoId || ""}-${item.id}`} className="py-3 border-t" style={{ borderColor: COR.linha }}><div className="flex justify-between gap-2 text-sm"><span className="min-w-0 break-words">{item.titulo || "Sem descrição"}</span><span className="shrink-0">{valor(Math.round(Number(item.valor || 0) * 100))}</span></div>{item.cartaoNome && <p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{item.cartaoNome} · {item.nome}</p>}<select aria-label={`Classificação de ${item.titulo || "lançamento"}`} value={grupoOrcamento(item)} onChange={(e) => classificar(item, e.target.value)} className="mt-2 w-full border rounded-xl px-3 py-2 text-sm" style={{ borderColor: COR.linha, background: COR.cartao }}><option value="sem">Sem classificação</option>{GRUPOS_ORCAMENTO.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}</select></div>)}
+    </details>
+    <details className="rounded-2xl border p-4" style={caixa}><summary className="text-sm font-semibold cursor-pointer">Evolução mensal</summary>
+      {oculto ? <p className="text-sm mt-4" style={{ color: COR.tintaSuave }}>Ative a exibição dos valores para ver a evolução.</p> : [{ titulo: "Despesas", chave: "despesas" }, { titulo: "Cartões", chave: "cartao" }].map((grafico) => <section key={grafico.chave} className="mt-5"><h3 className="font-semibold text-sm mb-3">{grafico.titulo}</h3>{grafico.chave === "cartao" && <select aria-label="Cartão do gráfico" value={selecionado} onChange={(e) => setCartaoId(e.target.value)} className="w-full rounded-xl border px-3 py-2 mb-4 text-sm" style={{ borderColor: COR.linha }}><option value="">Todos os cartões</option>{cartoes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}</select>}{dados.length ? <div style={{ width: "100%", height: 230 }}><ResponsiveContainer><BarChart data={dados}><CartesianGrid strokeDasharray="3 3" stroke={COR.linha} /><XAxis dataKey="mesRotulo" tick={{ fontSize: 10, fill: COR.tintaSuave }} tickLine={false} /><YAxis width={56} tick={{ fontSize: 10, fill: COR.tintaSuave }} tickFormatter={(v) => `R$${v}`} /><Tooltip formatter={(v) => fmt(v)} /><Bar dataKey={grafico.chave} name={grafico.titulo} fill={COR.ouro} radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div> : <p className="text-sm">Nenhum lançamento para mostrar.</p>}</section>)}
+    </details>
   </div>;
 }
 
