@@ -584,7 +584,7 @@ function MeuCaixaApp({ usuario, compartilhamento }) {
     const nome = nomeNovoCartao.trim();
     if (!nome) return;
     if (cartaoConfigurando) {
-      setCartoes((prev) => prev.map((c) => c.id === cartaoConfigurando.id ? { ...c, diaVencimento: diaNovoCartao ? Number(diaNovoCartao) : null } : c));
+      setCartoes((prev) => prev.map((c) => c.id === cartaoConfigurando.id ? { ...c, nome, diaVencimento: diaNovoCartao ? Number(diaNovoCartao) : null } : c));
       fecharPopupCartoes();
       return;
     }
@@ -877,9 +877,9 @@ function MeuCaixaApp({ usuario, compartilhamento }) {
               <button type="button" aria-label="Fechar cartões" onClick={fecharPopupCartoes} className="p-2"><X size={20} /></button>
             </div>
             {mostrarAddCartao ? (
-              <form className="cartao-form-entrar flex flex-col gap-4" aria-label={cartaoConfigurando ? "Configurar cartão" : "Adicionar cartão"} onSubmit={(e) => { e.preventDefault(); adicionarCartao(); }}>
-                <div><h3 className="text-base font-semibold" style={{ color: COR.ouro }}>{cartaoConfigurando ? "Configurar cartão" : "Adicionar cartão"}</h3><p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{cartaoConfigurando ? "Escolha o dia de vencimento." : "Informe o nome e o vencimento do seu cartão."}</p></div>
-                <Campo label="Nome do cartão"><input autoFocus required readOnly={!!cartaoConfigurando} value={nomeNovoCartao} onChange={(e) => setNomeNovoCartao(e.target.value)} placeholder="Ex: Cartão Inter" className={inputBase + " w-full"} style={{ borderColor: COR.linha }} /></Campo>
+              <form className="cartao-form-entrar flex flex-col gap-4" aria-label={cartaoConfigurando ? "Editar cartão" : "Adicionar cartão"} onSubmit={(e) => { e.preventDefault(); adicionarCartao(); }}>
+                <div><h3 className="text-base font-semibold" style={{ color: COR.ouro }}>{cartaoConfigurando ? "Editar cartão" : "Adicionar cartão"}</h3><p className="text-xs mt-1" style={{ color: COR.tintaSuave }}>{cartaoConfigurando ? "Altere o nome e o dia de vencimento." : "Informe o nome e o vencimento do seu cartão."}</p></div>
+                <Campo label="Nome do cartão"><input autoFocus required value={nomeNovoCartao} onChange={(e) => setNomeNovoCartao(e.target.value)} placeholder="Ex: Cartão Inter" className={inputBase + " w-full"} style={{ borderColor: COR.linha }} /></Campo>
                 <Campo label="Dia de vencimento"><select className={inputBase + " w-full"} value={diaNovoCartao} onChange={(e) => setDiaNovoCartao(e.target.value)} style={{ borderColor: COR.linha }}><option value="">{identificarBancoCartao({ nome: nomeNovoCartao }) === "nubank" ? "Dia 08 (padrão Nubank)" : "Não informado"}</option>{Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>Dia {String(i + 1).padStart(2, "0")}</option>)}</select></Campo>
                 <p className="text-xs" style={{ color: COR.tintaSuave }}>Nos meses mais curtos, será usado o último dia do mês.</p>
                 <div className="flex gap-2 justify-end">
@@ -895,7 +895,7 @@ function MeuCaixaApp({ usuario, compartilhamento }) {
                     <button type="button" aria-label={`Opções de ${c.nome}`} aria-expanded={cartaoOpcoesId === c.id} onClick={() => setCartaoOpcoesId((atual) => atual === c.id ? null : c.id)} className="p-4 shrink-0" style={{ color: COR.tintaSuave }}><ChevronRight size={20} style={{ transform: cartaoOpcoesId === c.id ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 150ms" }} /></button>
                   </div>
                   {cartaoOpcoesId === c.id && <div className="flex flex-wrap justify-end gap-2 p-2" style={{ borderTop: `1px solid ${COR.linha}`, background: COR.papel }}>
-                    <button type="button" aria-label={`Configurar ${c.nome}`} onClick={() => { setCartaoConfigurando(c); setNomeNovoCartao(c.nome); setDiaNovoCartao(String(diaVencimentoCartao(c) || "")); setMostrarAddCartao(true); setCartaoOpcoesId(null); }} className="flex items-center gap-2 p-2 rounded-lg text-sm font-semibold" style={{ color: COR.ouro }}><Settings2 size={18} />Vencimento</button>
+                    <button type="button" aria-label={`Editar ${c.nome}`} onClick={() => { setCartaoConfigurando(c); setNomeNovoCartao(c.nome); setDiaNovoCartao(String(diaVencimentoCartao(c) || "")); setMostrarAddCartao(true); setCartaoOpcoesId(null); }} className="flex items-center gap-2 p-2 rounded-lg text-sm font-semibold" style={{ color: COR.ouro }}><Settings2 size={18} />Editar cartão</button>
                     <button type="button" aria-label={`Excluir ${c.nome}`} title={`Excluir ${c.nome}`} onClick={() => { fecharPopupCartoes(); setCartaoParaExcluir(c); }} className="flex items-center gap-2 p-2 rounded-lg text-sm font-semibold" style={{ color: COR.vermelho }}><Trash2 size={18} />Excluir cartão</button>
                   </div>}
                 </div>)}
